@@ -1,140 +1,150 @@
-<div align="center">
-  <img src="public/pegasus-logo.png" alt="Logo Pegasus: cabeça branca de perfil, crina azul, expressão séria e asa abaixo" width="180" />
+# Pegasus — Mensageiro privado (v0.6)
 
-  # PEGASUS
+**Pegasus** é um protótipo de aplicativo/site de conversas em tempo real, com interface *Liquid Glass* e referências de *Art Nouveau*. A identidade visual utiliza um céu de nebulosas azuis e o desenho da constelação de Pegasus, agora sem nomes de estrelas nem a palavra “PEGASUS” sobre o céu.
 
-  **Palavras que ganham asas.**
+> **Status:** protótipo para desenvolvimento e testes locais. Ainda não é um mensageiro seguro para uso público nem oferece criptografia de ponta a ponta.
 
-  Mensagens, mídias e conversas privadas sob um céu inspirado na constelação de Pegasus.
-</div>
+## O que o Pegasus faz
 
----
+- Cadastro e login por **e-mail e senha**.
+- Código de contato alfanumérico de **6 caracteres** para cada usuário.
+- Conversas privadas encontradas por e-mail ou código.
+- Configuração de privacidade para iniciar conversas livremente ou exigir **solicitação de aprovação**.
+- Perfis com **foto e biografia**.
+- Envio de mensagens de texto atualizadas em tempo real.
+- Envio de **imagens, GIFs animados, áudios e documentos**.
+- **Compartilhamento de contato** de pessoas com quem o remetente já possui uma conversa.
+- Menu de mensagem pelo **botão direito**, edição pelo autor, exclusão para todos pelo autor ou ocultação individual pelo destinatário, sem mensagens de aviso no histórico.
+- Histórico salvo em SQLite.
+- Tema visual em azul, logo de Pegasus, favicon **circular com cantos transparentes**, sem emblema quadrado.
 
-## ✨ Pegasus v0.5 — o que mudou
+## Novidades da v0.6
 
-A identidade visual do Pegasus foi refinada com base na logo escolhida para o projeto. Esta atualização preserva as funcionalidades da v0.4 e acrescenta:
+### Um único botão de anexos
 
-- **Nova logo definitiva:** o emblema azul, ciano e branco com o rosto do cavalo alado sério, crina azul e asa na parte inferior. É exatamente a imagem selecionada, instalada no site como `public/pegasus-logo.png`, com favicon derivado da mesma imagem.
-- **Fundo espacial redesenhado:** novo `pegasus-galaxy.svg`, com uma faixa de nebulosas azuladas e muitas estrelas, e `pegasus-constellation.svg`, um desenho estilizado da constelação com o quadrado de Pegasus e estrelas nomeadas.
-- **Menu de mensagens por clique direito:** sem botões de três pontos. Funciona tanto em mensagens próprias quanto recebidas. Também pode ser aberto pelo teclado com `Shift + F10` e por toque prolongado em telas sensíveis ao toque.
-- **Mensagem própria:** editar texto, copiar texto, salvar imagem ou apagar a mensagem para os dois participantes.
-- **Mensagem recebida:** copiar texto, salvar imagem ou **apagar somente da própria visualização**, sem alterar a mensagem do remetente.
-- **Transformação PG1 oculta da interface:** a conversa mostra apenas o texto interpretado; o usuário não vê mais um botão para inspecionar o código. A PG1 continua sendo utilizada internamente.
-- **Sem etiqueta de versão no chat:** selo `BETA · 04` removido da interface.
+No campo de mensagem, o botão **+** abre um pequeno menu que não cobre a conversa. Há cinco opções:
 
-**Observação:** a ocultação de códigos PG1 na tela não constitui criptografia de ponta a ponta (E2EE). A implementação mantém a transformação matemática PG1 e a criptografia AES-256-GCM para armazenamento no servidor; um cliente técnico pode estudar as requisições e o código-fonte.
+| Opção | Comportamento |
+|---|---|
+| **Imagem** | Seleciona PNG/JPEG/WEBP e abre o Pegasus Studio para pré-visualizar e editar antes do envio |
+| **GIF** | Seleciona GIF do dispositivo e permite visualizá-lo; GIF sem edição mantém a animação |
+| **Áudio** | Seleciona um arquivo de áudio e o envia com reprodutor no chat |
+| **Documento** | Seleciona um documento e o disponibiliza para download na conversa |
+| **Contato de alguém** | Exibe uma lista de contatos de conversas existentes; o destinatário recebe um cartão com código Pegasus |
 
-## Funcionalidades
+**Tipos e limites na versão local:**
 
-| Função | Disponível |
-|---|:---:|
-| Cadastro com e-mail e senha | ✅ |
-| Foto, bio e código de contato de seis caracteres | ✅ |
-| Iniciar conversa por código ou e-mail | ✅ |
-| Permissão para novas conversas e solicitações | ✅ |
-| Enviar e receber texto em tempo real | ✅ |
-| Enviar imagens PNG, JPG, WEBP e GIF | ✅ |
-| Editor de imagem (recorte, desenho, texto, filtros) | ✅ |
-| Editar e apagar mensagens próprias sem aviso no chat | ✅ |
-| Apagar mensagem recebida somente para si | ✅ |
-| Contexto por botão direito para mensagens dos dois lados | ✅ |
-| Áudio, vídeo e chamadas | Planejado |
+- Imagens PNG, JPEG e WEBP: até **2,5 MB**.
+- GIFs: até **4 MB**.
+- Áudios MP3, WAV, OGG, M4A, WEBM e FLAC: até **4 MB**.
+- Documentos PDF, TXT, DOC, DOCX, XLS, XLSX, PPT, PPTX, ODT e ODS: até **4 MB**.
 
-## 🛠 Tecnologias
+O Pegasus verifica a extensão e a assinatura básica dos arquivos no servidor. Os limites não ficam mais escritos abaixo do campo de mensagem; continuam valendo para não sobrecarregar o protótipo. O editor não é aplicado a áudio ou documento. **Áudio é selecionado do dispositivo; gravação pelo microfone ainda não foi implementada.** Para GIFs, o editor converte para uma imagem estática caso o usuário aplique alterações.
 
-- **Node.js 22.13+** e servidor HTTP nativo
-- **SQLite (`node:sqlite`)** para dados persistentes
-- **Server-Sent Events (SSE)** para atualização de conversas
-- **HTML, CSS e JavaScript** para a interface responsiva
-- **Canvas API** para o editor de imagens
-- **scrypt** para hashing de senhas
-- **AES-256-GCM** para armazenamento cifrado de mensagens e mídias
-- **PG1**, transformação reversível personalizada, apenas para mensagens de texto
+### Constelação sem textos
 
-## 📂 Estrutura
+O arquivo `public/pegasus-constellation.svg` não contém mais o nome das estrelas nem o título "PEGASUS". As linhas, estrelas e brilho continuam aparecendo sobre a galáxia.
 
-```text
-Pegasus/
-├── public/
-│   ├── index.html
-│   ├── styles.css
-│   ├── app.js
-│   ├── editor.js
-│   ├── cipher.js
-│   ├── pegasus-logo.png          # logo escolhida, usada no site
-│   ├── favicon.png               # ícone do navegador
-│   ├── pegasus-galaxy.svg        # nebulosas e estrelas
-│   └── pegasus-constellation.svg # constelação estilizada
-├── tests/
-│   ├── cipher.test.mjs
-│   ├── context-menu.test.mjs
-│   ├── migration.test.mjs
-│   ├── profile-privacy.test.mjs
-│   └── server.test.mjs
-├── server.mjs
-├── package.json
-├── .gitignore
-└── README.md
-```
+### Favicon somente circular
 
-## ▶️ Como executar
+`public/favicon.png` é um PNG com fundo transparente fora do círculo. A versão no navegador pode demorar a atualizar se estiver armazenada em cache.
 
-1. Instale o **Node.js 22.13.0 ou superior**.
-2. Extraia este ZIP e abra a pasta `Pegasus` no terminal do VS Code.
+## Arquitetura
+
+| Parte | Tecnologia |
+|---|---|
+| Servidor | Node.js 22.13+, HTTP nativo |
+| Banco de dados | SQLite (`node:sqlite`) |
+| Atualização de conversas | Server-Sent Events (SSE) |
+| Interface | HTML, CSS e JavaScript nativos |
+| Proteção de senhas | scrypt com salt |
+| Proteção dos dados armazenados | AES-256-GCM no servidor |
+| Transformação personalizada de texto | PG1 |
+
+**Importante:** PG1 é uma transformação matemática personalizada e **não é criptografia de ponta a ponta**. Os participantes veem o texto interpretado na conversa, não a codificação interna. O servidor tem acesso ao conteúdo necessário para funcionar. Imagens, áudios e documentos são cifrados em repouso no servidor, mas não têm proteção de ponta a ponta.
+
+## Instalação
+
+1. Instale o **Node.js 22.13 ou superior**.
+2. Extraia o ZIP e abra a pasta `Pegasus` no VS Code.
 3. Execute:
 
 ```bash
 npm start
 ```
 
-4. Abra **http://localhost:3000**.
+4. Acesse **http://localhost:3000**.
 
-Não é necessário instalar pacotes npm extras, pois o projeto utiliza módulos nativos do Node.js.
+Para atualizar automaticamente durante a edição do código:
 
-Para testar a troca de mensagens, crie duas contas em navegadores diferentes ou uma janela normal e outra anônima.
+```bash
+npm run dev
+```
 
-Para executar os testes:
+Para realizar os testes:
 
 ```bash
 npm test
 ```
 
-## ♻️ Atualizar sem perder suas conversas
+## Teste com duas contas
+
+1. Abra o Pegasus no navegador e registre a primeira conta.
+2. Abra uma janela anônima e registre a segunda conta.
+3. Inicie uma conversa usando o e-mail ou código Pegasus de seis caracteres.
+4. Envie texto ou utilize **+** para abrir o menu de anexos.
+5. Escolha uma imagem, GIF, áudio, documento ou contato.
+6. Confira o recebimento na outra conta e o histórico após reiniciar o servidor.
+7. Para testar compartilhamento de contato, crie uma terceira conta e inicie uma conversa com ela antes de selecionar **Contato de alguém**.
+
+## Atualizar a v0.5 sem perder os dados
 
 1. **Pare o servidor.**
-2. Faça backup da pasta `data/`, principalmente `pegasus.sqlite`, `pegasus.sqlite-wal` (se existir), `pegasus.sqlite-shm` (se existir) e `local-secret.key`.
-3. Substitua os arquivos do código pela v0.5 **sem apagar sua pasta `data/`**.
-4. Inicie o servidor com `npm start`.
+2. Faça backup da pasta `data/`, especialmente de `pegasus.sqlite` e `local-secret.key`.
+3. Substitua os arquivos de código pelos arquivos da v0.6.
+4. Preserve a pasta `data/` anterior e reinicie com `npm start`.
+5. Force a atualização do navegador com `Ctrl + F5` se o ícone ou estilos antigos permanecerem no cache.
 
-A v0.5 mantém a migração de usuários, perfis e solicitações anteriores, e cria apenas uma tabela adicional para mensagens ocultadas individualmente. Em um servidor remoto, mantenha a mesma variável `PEGASUS_MESSAGE_KEY` para conseguir decifrar o banco antigo.
+Não apague `local-secret.key`: ela é usada para recuperar os conteúdos já armazenados localmente. No ambiente de produção, configure `PEGASUS_MESSAGE_KEY` de forma persistente e mantenha-a em segredo.
 
-## Segurança e limites atuais
+## Organização dos arquivos
 
-O Pegasus é um **protótipo de desenvolvimento**, e não está pronto para implantação pública sem revisão de segurança e infraestrutura. As mensagens podem ser recuperadas pelo servidor: **não existe criptografia de ponta a ponta** nesta versão.
+```text
+Pegasus/
+├── public/
+│   ├── index.html                   # Login, conversas, menu compacto, modais
+│   ├── styles.css                   # Layout responsivo e Liquid Glass
+│   ├── app.js                       # Lógica do cliente e dos anexos
+│   ├── editor.js                    # Pegasus Studio
+│   ├── cipher.js                    # Transformação matemática PG1
+│   ├── pegasus-logo.png             # Logo do projeto
+│   ├── favicon.png                  # Ícone circular transparente
+│   ├── pegasus-galaxy.svg           # Fundo de galáxia
+│   └── pegasus-constellation.svg    # Constelação sem nomes
+├── tests/                           # Testes de backend e migração
+├── server.mjs                       # API, sessões, SSE e armazenamento
+├── package.json
+├── .gitignore
+└── README.md
+```
 
-- Imagens estáticas: até **2,5 MB**; GIFs: até **4 MB**.
-- Alterar ou apagar globalmente mensagens continua restrito ao **remetente**.
-- Ao apagar uma mensagem recebida "só para mim", ela permanece acessível ao remetente e não reaparece no histórico da sua conta.
-- Mensagens e imagens anteriores continuam no banco durante a atualização.
-- Ainda faltam recuperação de senha, bloqueio de usuários, moderação/abuso, limites globais de armazenamento, confirmações de leitura e chamadas.
+## Limitações e próximos passos
 
-## 🗺️ Roadmap
+O objetivo desta etapa é validar um protótipo, não hospedar um serviço público em escala. Os arquivos são salvos codificados dentro das mensagens no banco SQLite. A solução precisará migrar para armazenamento de objetos, processamento de mídia, antivírus, limites de uso e otimização de download antes de atender muitas pessoas.
 
-- [x] v0.1 — Texto, cadastro e login
-- [x] v0.2 — Envio de imagens
-- [x] v0.3 — GIFs, editor, códigos e edição de mensagens
-- [x] v0.4 — Foto de perfil, bio e aprovação de conversas
-- [x] v0.5 — Logo aprovada, galáxia, contexto pelo botão direito e PG1 oculto
-- [ ] Próximas versões — Áudio, respostas, notificações, vídeo e chamadas
+Também faltam gravação de áudio no navegador, chamadas de voz/vídeo, indicadores de entrega/leitura, moderação, proteção antiabuso mais abrangente e uma arquitetura real de criptografia de ponta a ponta.
 
-## Commit para o GitHub
+## Commit sugerido
 
 ```bash
 git add .
-git commit -m "feat: atualiza logo Pegasus e melhora visual e ações das mensagens"
+git commit -m "feat: centraliza anexos em menu compacto e aprimora constelacao e favicon"
 git push origin main
 ```
 
----
+Para criar uma versão no GitHub:
 
-<div align="center"><strong>PEGASUS · Palavras que ganham asas.</strong></div>
+```bash
+git tag -a v0.6.0 -m "Pegasus v0.6.0 - Menu de anexos e identidade visual"
+git push origin v0.6.0
+```

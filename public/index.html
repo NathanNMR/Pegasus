@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#09162f" />
   <meta name="description" content="Pegasus — conversas de texto e imagens em uma interface galáctica." />
-  <link rel="icon" href="/favicon.png" type="image/png" />
+  <link rel="icon" href="/favicon.png?v=6" type="image/png" />
   <link rel="stylesheet" href="/styles.css" />
   <title>Pegasus — Mensagens</title>
   <script type="module" src="/app.js"></script>
@@ -72,21 +72,36 @@
         <div id="messageList" class="message-list" role="log" aria-label="Mensagens desta conversa" aria-live="polite"></div>
         <div class="composer-area">
           <div id="composerMedia" class="composer-media glass-inset" hidden>
-            <img id="selectedImagePreview" class="composer-media-preview" alt="Pré-visualização da imagem selecionada" />
-            <div class="composer-media-info"><strong>Imagem pronta para enviar</strong><span id="selectedImageName"></span></div>
-            <button id="removeImageButton" type="button" class="remove-media-button" aria-label="Remover imagem">×</button>
+            <div id="attachmentPreview" class="attachment-preview" aria-hidden="true">📎</div>
+            <div class="composer-media-info"><strong id="attachmentTitle">Arquivo preparado</strong><span id="selectedImageName"></span></div>
+            <button id="removeImageButton" type="button" class="remove-media-button" aria-label="Remover anexo">×</button>
+          </div>
+          <div id="attachmentMenu" class="attachment-popover glass" hidden aria-label="Opções de anexo">
+            <div id="attachmentOptions" class="attachment-options">
+              <button type="button" data-attach="image"><span>▧</span> Imagem</button>
+              <button type="button" data-attach="gif"><span>▣</span> GIF</button>
+              <button type="button" data-attach="audio"><span>♫</span> Áudio</button>
+              <button type="button" data-attach="document"><span>▤</span> Documento</button>
+              <button type="button" data-attach="contact"><span>♧</span> Contato de alguém</button>
+            </div>
+            <div id="contactPicker" class="contact-picker" hidden>
+              <div class="contact-picker-heading"><button id="backToAttachments" type="button" aria-label="Voltar para anexos">←</button><strong>Compartilhar contato</strong></div>
+              <p>Escolha uma pessoa de suas conversas.</p>
+              <div id="shareContactsList" class="contact-picker-list"></div>
+            </div>
           </div>
           <form id="messageForm" class="composer glass-inset">
             <input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
             <input id="gifInput" type="file" accept="image/gif" hidden />
-            <button id="attachImageButton" type="button" class="attach-button" title="Enviar imagem" aria-label="Enviar imagem">
-              <svg viewBox="0 0 24 24" fill="none"><path d="M21 12.5 12.5 21A5.304 5.304 0 1 1 5 13.5l9.2-9.2a3.75 3.75 0 1 1 5.3 5.3l-9.2 9.2a2.25 2.25 0 1 1-3.2-3.2l8.1-8.1"/></svg>
+            <input id="audioInput" type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/mp4,audio/webm,audio/flac,.mp3,.wav,.ogg,.m4a,.webm,.flac" hidden />
+            <input id="documentInput" type="file" accept=".pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,application/pdf,text/plain" hidden />
+            <button id="attachmentButton" type="button" class="attach-button" aria-label="Anexar arquivo ou compartilhar contato" aria-haspopup="true" aria-controls="attachmentMenu" aria-expanded="false" title="Anexar arquivo ou contato">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 4v16M4 12h16"/></svg>
             </button>
-            <button id="attachGifButton" type="button" class="attach-button gif-attach" title="Enviar GIF animado" aria-label="Enviar GIF animado">GIF</button>
             <textarea id="messageInput" name="message" rows="1" maxlength="4000" placeholder="Escreva sua mensagem..." aria-label="Sua mensagem"></textarea>
             <button id="sendButton" type="submit" class="send-button" title="Enviar mensagem" aria-label="Enviar mensagem"><svg viewBox="0 0 24 24" fill="none"><path d="M4 12 20 4l-5.8 16-3.1-7.1L4 12Z"/><path d="M11.1 12.9 20 4"/></svg></button>
           </form>
-          <div class="composer-hint"><span>✧ Imagens até 2,5 MB · GIFs até 4 MB</span><span><kbd>Enter</kbd> para enviar · <kbd>Shift + Enter</kbd> para pular linha</span></div>
+          <div class="composer-hint"><span><kbd>Enter</kbd> para enviar · <kbd>Shift + Enter</kbd> para pular linha</span></div>
         </div>
       </section>
     </main>

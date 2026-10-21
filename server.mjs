@@ -21,6 +21,7 @@ const MAX_MESSAGE_LENGTH = 4000;
 const MAX_JSON_BYTES = 7_500_000;
 const MAX_IMAGE_BYTES = 2_500_000;
 const MAX_GIF_BYTES = 4_000_000;
+const MAX_OTHER_FILE_BYTES = 4_000_000;
 const ALLOWED_IMAGE_MIME = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 
 await mkdir(dataDir, { recursive: true, mode: 0o700 });
@@ -137,6 +138,13 @@ function unpackStoredMessage(stored) {
     if (parsed && parsed.version === 2 && parsed.kind === 'text' && typeof parsed.ciphertext === 'string') {
       return { kind: 'text', ciphertext: parsed.ciphertext };
     }
+    if (parsed && parsed.version === 2 && ['audio', 'document'].includes(parsed.kind)
+        && typeof parsed.file?.dataUrl === 'string') {
+      return { kind: parsed.kind, file: parsed.file };
+    }
+    if (parsed && parsed.version === 2 && parsed.kind === 'contact' && parsed.contact?.friendCode) {
+      return { kind: 'contact', contact: parsed.contact };
+    }
     if (parsed && parsed.version === 2 && parsed.kind === 'image' && parsed.image && typeof parsed.image.dataUrl === 'string') {
       return {
         kind: 'image',
@@ -156,6 +164,9 @@ function unpackStoredMessage(stored) {
 function previewMessage(message) {
   if (!message) return null;
   if (message.kind === 'image') return message.image?.mime === 'image/gif' ? '🎞️ GIF' : '🖼️ Imagem';
+  if (message.kind === 'audio') return '🎵 Áudio';
+  if (message.kind === 'document') return '📄 Documento';
+  if (message.kind === 'contact') return `👤 ${message.contact.name}`;
   try { return decodePegasus(message.ciphertext).replace(/\s+/g, ' ').trim() || 'Mensagem'; }
   catch { return 'Mensagem'; }
 }
@@ -190,6 +201,72 @@ function validateImagePayload(input) {
     (mime === 'image/gif' && ['GIF87a', 'GIF89a'].includes(bytes.toString('ascii', 0, 6)));
   if (!validSignature) throw Object.assign(new Error('Os dados não correspondem ao formato da imagem.'), { status: 400 });
   return { dataUrl, name, mime, size };
+}
+
+const AUDIO_BY_EXTENSION = Object.freeze({
+  mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg',
+  m4a: 'audio/mp4', webm: 'audio/webm', flac: 'audio/flac',
+});
+const DOCUMENT_BY_EXTENSION = Object.freeze({
+  pdf: 'application/pdf', txt: 'text/plain',
+  doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  odt: 'application/vnd.oasis.opendocument.text', ods: 'application/vnd.oasis.opendocument.spreadsheet',
+});
+function validateFilePayload(input, kind) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw Object.assign(new Error('Arquivo inválido.'), {status: 400});
+  }
+  const name = String(input.name || '').replace(/[\/\\\x00-\x1f]/g, '').trim().normalize('NFC').slice(0, 120);
+  const extension = name.split('.').at(-1)?.toLowerCase();
+  const expected = (kind === 'audio' ? AUDIO_BY_EXTENSION : DOCUMENT_BY_EXTENSION)[extension];
+  if (!name || !expected) throw Object.assign(new Error('Formato de arquivo não permitido.'), {status: 400});
+  const dataUrl = input.dataUrl;
+  if (typeof dataUrl !== 'string' || dataUrl.length > 5_500_000) {
+    throw Object.assign(new Error('Arquivo muito grande.'), {status: 413});
+  }
+  const matched = /^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  if (!matched) throw Object.assign(new Error('Codificação de arquivo inválida.'), {status: 400});
+  const [, mime, base64] = matched;
+  // O tipo MIME é definido a partir da extensão, não fornecido pelo navegador.
+  const acceptedMimes = [expected, 'application/octet-stream'];
+  if (expected === 'audio/wav') acceptedMimes.push('audio/x-wav', 'audio/wave');
+  if (expected === 'audio/mp4') acceptedMimes.push('audio/x-m4a');
+  if (expected === 'audio/mpeg') acceptedMimes.push('audio/mp3');
+  if (!acceptedMimes.includes(mime)) throw Object.assign(new Error('O arquivo e o formato não correspondem.'), {status: 400});
+  const bytes = Buffer.from(base64, 'base64');
+  if (!bytes.length || bytes.length > MAX_OTHER_FILE_BYTES || bytes.toString('base64') !== base64) {
+    throw Object.assign(new Error('Arquivo inválido ou maior que 4 MB.'), {status: 413});
+  }
+  const signature = {
+    mp3: () => bytes.toString('ascii',0,3)==='ID3' || (bytes[0] === 0xff && (bytes[1] & 0xe0)===0xe0),
+    wav: () => bytes.toString('ascii',0,4)==='RIFF' && bytes.toString('ascii',8,12)==='WAVE',
+    ogg: () => bytes.toString('ascii',0,4)==='OggS',
+    m4a: () => bytes.toString('ascii',4,8)==='ftyp',
+    webm: () => bytes.subarray(0,4).equals(Buffer.from([0x1a,0x45,0xdf,0xa3])),
+    flac: () => bytes.toString('ascii',0,4)==='fLaC',
+    pdf: () => bytes.toString('ascii',0,5)==='%PDF-',
+    txt: () => !bytes.includes(0) && (() => { try { new TextDecoder('utf-8',{fatal:true}).decode(bytes); return true; } catch {return false;} })(),
+    doc: () => bytes.subarray(0,8).equals(Buffer.from([0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1])),
+    xls: () => bytes.subarray(0,8).equals(Buffer.from([0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1])),
+    ppt: () => bytes.subarray(0,8).equals(Buffer.from([0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1])),
+    docx: () => bytes.toString('ascii',0,2)==='PK', xlsx: () => bytes.toString('ascii',0,2)==='PK',
+    pptx: () => bytes.toString('ascii',0,2)==='PK', odt: () => bytes.toString('ascii',0,2)==='PK',
+    ods: () => bytes.toString('ascii',0,2)==='PK',
+  }[extension];
+  if (!signature()) throw Object.assign(new Error('Assinatura do arquivo inválida.'), {status: 400});
+  return { name, mime: expected, dataUrl: `data:${expected};base64,${base64}`, size: bytes.length };
+}
+function validateSharedContact(userId, contactId) {
+  if (!Number.isSafeInteger(contactId) || contactId <= 0) {
+    throw Object.assign(new Error('Contato inválido.'), {status: 400});
+  }
+  const contact = db.prepare(`SELECT id,name,friend_code,avatar FROM users WHERE id=? AND
+    (id=? OR EXISTS (SELECT 1 FROM conversations WHERE
+      (user_a=? AND user_b=users.id) OR (user_b=? AND user_a=users.id)))`).get(contactId,userId,userId,userId);
+  if (!contact) throw Object.assign(new Error('Compartilhe apenas contatos de suas conversas.'), {status: 403});
+  return { id: contact.id, name:contact.name, friendCode:contact.friend_code, avatar:contact.avatar || '' };
 }
 
 function safeUser(row) {
@@ -313,7 +390,9 @@ function toMessage(row) {
     conversationId: row.conversation_id,
     senderId: row.sender_id,
     kind: message.kind,
-    ...(message.kind === 'text' ? { ciphertext: message.ciphertext } : { image: message.image }),
+    ...(message.kind === 'text' ? {ciphertext:message.ciphertext} :
+      message.kind === 'image' ? {image:message.image} :
+      message.kind === 'contact' ? {contact:message.contact} : {file:message.file}),
     preview: previewMessage(message),
     createdAt: row.created_at,
     revision: row.revision,
@@ -342,7 +421,7 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' data:; object-src 'none'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
   try {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const method = req.method.toUpperCase();
@@ -533,12 +612,16 @@ const server = http.createServer(async (req, res) => {
         }
         if (method === 'POST') {
           const payload = await readJson(req);
-          const kind = payload.kind === 'image' ? 'image' : payload.kind === 'text' || payload.kind == null ? 'text' : null;
+          const kind = ['image','audio','document','contact','text'].includes(payload.kind) ? payload.kind : payload.kind == null ? 'text' : null;
           if (!kind) return fail(res, 400, 'Tipo de mensagem inválido.');
           let message;
           if (kind === 'image') {
             const image = validateImagePayload(payload.image);
             message = { kind: 'image', image };
+          } else if (kind === 'audio' || kind === 'document') {
+            message = { kind, file: validateFilePayload(payload.file, kind) };
+          } else if (kind === 'contact') {
+            message = { kind: 'contact', contact:validateSharedContact(user.id, Number(payload.contactId)) };
           } else {
             const { ciphertext } = payload;
             if (typeof ciphertext !== 'string' || Buffer.byteLength(ciphertext) > 240_000) return fail(res, 400, 'Mensagem inválida ou grande demais.');
@@ -565,7 +648,9 @@ const server = http.createServer(async (req, res) => {
               conversationId,
               senderId: user.id,
               kind: message.kind,
-              ...(message.kind === 'text' ? { ciphertext: message.ciphertext } : { image: message.image }),
+              ...(message.kind === 'text' ? {ciphertext:message.ciphertext} :
+      message.kind === 'image' ? {image:message.image} :
+      message.kind === 'contact' ? {contact:message.contact} : {file:message.file}),
               preview: previewMessage(message),
               createdAt,
               revision: 0,

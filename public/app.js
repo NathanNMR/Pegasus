@@ -11,6 +11,7 @@ const state = {
   authMode: 'login',
   currentPartner: null,
   draftImage: null,
+  draftAttachment: null,
   addMode: 'email',
   editMessageId: null,
   requests: {incoming:[],outgoing:[]},
@@ -62,7 +63,10 @@ function safeDecode(ciphertext) {
 function previewMessage(message) {
   if (!message) return 'Diga olá! ✨';
   if (message.preview) return message.preview;
-  if (message.kind === 'image') return `🖼️ ${message.image?.name || 'Imagem'}`;
+  if (message.kind === 'image') return '🖼️ Imagem';
+  if (message.kind === 'audio') return '🎵 Áudio';
+  if (message.kind === 'document') return '📄 Documento';
+  if (message.kind === 'contact') return `👤 ${message.contact?.name || 'Contato'}`;
   return safeDecode(message.ciphertext).replace(/\s+/g, ' ');
 }
 async function api(url, options = {}) {
@@ -237,11 +241,17 @@ function showMessageContextMenu(message, x, y) {
       await navigator.clipboard.writeText(safeDecode(message.ciphertext));
       showToast('Texto copiado!');
     });
+  } else if (message.kind === 'contact') {
+    option('⧉ Copiar código do contato', async () => {
+      await navigator.clipboard.writeText(message.contact.friendCode);
+      showToast('Código copiado!');
+    });
   } else {
-    option('↓ Salvar imagem', () => {
+    option(message.kind === 'image' ? '↓ Salvar imagem' : '↓ Baixar arquivo', () => {
+      const file = message.kind === 'image' ? message.image : message.file;
       const download = document.createElement('a');
-      download.href = message.image.dataUrl;
-      download.download = message.image.name || 'imagem-pegasus.png';
+      download.href = file.dataUrl;
+      download.download = file.name || 'arquivo-pegasus';
       document.body.append(download);
       download.click();
       download.remove();
@@ -306,6 +316,40 @@ function renderMessages() {
       img.loading = 'lazy';
       figure.append(img);
       bubble.append(figure);
+    } else if (message.kind === 'audio') {
+      const sound = document.createElement('audio');
+      sound.controls = true;
+      sound.preload = 'none';
+      sound.src = message.file.dataUrl;
+      sound.setAttribute('aria-label', 'Áudio recebido');
+      sound.className = 'message-audio';
+      bubble.append(sound);
+    } else if (message.kind === 'document') {
+      const link = document.createElement('a');
+      link.className = 'message-document';
+      link.href = message.file.dataUrl;
+      link.download = message.file.name;
+      link.textContent = `📄 ${message.file.name}`;
+      bubble.append(link);
+    } else if (message.kind === 'contact') {
+      const card = text('div','message-contact','');
+      card.append(text('strong','',`👤 ${message.contact.name}`));
+      card.append(text('small','',`Código ${message.contact.friendCode}`));
+      const open = text('button', '', 'Abrir contato');
+      open.type = 'button';
+      open.addEventListener('click', async () => {
+        try {
+          const result = await api('/api/conversations', {
+            method:'POST',body:JSON.stringify({friendCode:message.contact.friendCode}),
+          });
+          if (result.conversationId) {
+            await refreshAll();
+            await selectConversation(result.conversationId);
+          } else showToast(result.message || 'Solicitação enviada.');
+        } catch (error) { showToast(error.message,true); }
+      });
+      card.append(open);
+      bubble.append(card);
     } else {
       bubble.append(text('p', 'message-body', safeDecode(message.ciphertext)));
     }
@@ -360,17 +404,58 @@ function openNewChat() {
 }
 function clearDraftImage(resetInput = true) {
   state.draftImage = null;
+  state.draftAttachment = null;
   $('#composerMedia').hidden = true;
-  $('#selectedImagePreview').src = '';
+  $('#attachmentPreview').replaceChildren('📎');
   $('#selectedImageName').textContent = '';
-  if (resetInput) $('#imageInput').value = '';
+  if (resetInput) for (const id of ['imageInput','gifInput','audioInput','documentInput']) $('#'+id).value = '';
 }
 function renderDraftImage() {
+  if (!state.draftImage) return clearDraftImage(false);
+  state.draftAttachment = null;
   const draft = state.draftImage;
-  if (!draft) return clearDraftImage(false);
   $('#composerMedia').hidden = false;
-  $('#selectedImagePreview').src = draft.dataUrl;
+  $('#attachmentTitle').textContent = draft.name.toLowerCase().endsWith('.gif') ? 'GIF preparado' : 'Imagem preparada';
+  const img = document.createElement('img');
+  img.src = draft.dataUrl;
+  img.alt = '';
+  $('#attachmentPreview').replaceChildren(img);
   $('#selectedImageName').textContent = `${draft.name} · ${Math.max(1, Math.round(draft.size / 1024))} KB`;
+}
+function renderDraftAttachment() {
+  const draft = state.draftAttachment;
+  if (!draft) return;
+  state.draftImage = null;
+  $('#composerMedia').hidden = false;
+  $('#attachmentPreview').replaceChildren(draft.kind === 'audio' ? '♫' : draft.kind === 'contact' ? '♧' : '▤');
+  $('#attachmentTitle').textContent = draft.kind === 'audio' ? 'Áudio preparado' : draft.kind === 'contact' ? 'Contato preparado' : 'Documento preparado';
+  $('#selectedImageName').textContent = draft.kind === 'contact' ? draft.contact.name :
+    `${draft.file.name} · ${Math.max(1, Math.round(draft.file.size / 1024))} KB`;
+}
+function toggleAttachmentMenu(open) {
+  $('#attachmentMenu').hidden = !open;
+  $('#attachmentButton').setAttribute('aria-expanded', String(open));
+  if (!open) { $('#contactPicker').hidden = true; $('#attachmentOptions').hidden = false; }
+}
+function renderShareContacts() {
+  const list = $('#shareContactsList');
+  list.replaceChildren();
+  if (!state.conversations.length) {
+    list.append(text('p','', 'Você ainda não tem contatos em suas conversas.'));
+  }
+  for (const conversation of state.conversations) {
+    const partner=conversation.partner;
+    const button=text('button','', '');
+    button.type='button';
+    button.append(text('span','',partner.name));
+    button.addEventListener('click', () => {
+      state.draftAttachment = {kind:'contact',contactId:partner.id,contact:partner};
+      renderDraftAttachment();
+      toggleAttachmentMenu(false);
+      $('#messageInput').focus();
+    });
+    list.append(button);
+  }
 }
 async function fileToDataUrl(file) {
   return await new Promise((resolve, reject) => {
@@ -556,14 +641,54 @@ const editor = setupImageEditor({
   onApply(image) { state.draftImage = image; renderDraftImage(); },
   onError(message) { showToast(message, true); },
 });
-$('#attachImageButton').addEventListener('click', () => $('#imageInput').click());
-$('#attachGifButton').addEventListener('click', () => $('#gifInput').click());
+$('#attachmentButton').addEventListener('click', event => {
+  event.stopPropagation();
+  toggleAttachmentMenu($('#attachmentMenu').hidden);
+});
+document.addEventListener('click', event => {
+  if (!$('#attachmentMenu').contains(event.target) && !$('#attachmentButton').contains(event.target)) toggleAttachmentMenu(false);
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') toggleAttachmentMenu(false);
+});
+for (const button of document.querySelectorAll('[data-attach]')) {
+  button.addEventListener('click', () => {
+    const kind=button.dataset.attach;
+    if (kind === 'contact') {
+      renderShareContacts();
+      $('#contactPicker').hidden=false;
+      $('#attachmentOptions').hidden=true;
+      return;
+    }
+    toggleAttachmentMenu(false);
+    const id={image:'imageInput',gif:'gifInput',audio:'audioInput',document:'documentInput'}[kind];
+    $('#' + id).click();
+  });
+}
+$('#backToAttachments').addEventListener('click', () => {
+  $('#contactPicker').hidden=true;
+  $('#attachmentOptions').hidden=false;
+});
 for (const id of ['imageInput', 'gifInput']) {
-  $( '#' + id ).addEventListener('change', async event => {
-    const file = event.target.files?.[0];
+  $('#'+id).addEventListener('change', async event => {
+    const file=event.target.files?.[0];
     if (!file) return;
-    await editor.open(file);
+    try { await editor.open(file); }
+    catch (error) { showToast(error.message,true); }
     event.target.value = '';
+  });
+}
+for (const [id,kind] of [['audioInput','audio'],['documentInput','document']]) {
+  $('#'+id).addEventListener('change', async event => {
+    const file=event.target.files?.[0];
+    if (!file) return;
+    event.target.value='';
+    if (file.size <= 0 || file.size > 4_000_000) return showToast('Arquivo de até 4 MB.',true);
+    try {
+      const dataUrl=await fileToDataUrl(file);
+      state.draftAttachment={kind,file:{name:file.name,size:file.size,dataUrl}};
+      renderDraftAttachment();
+    } catch(error) {showToast(error.message,true);}
   });
 }
 $('#removeImageButton').addEventListener('click', () => clearDraftImage());
@@ -573,7 +698,8 @@ $('#messageForm').addEventListener('submit', async event => {
   const input = $('#messageInput');
   const originalText = input.value;
   const draftImage = state.draftImage;
-  if (!originalText.trim() && !draftImage) return;
+  const attachment = state.draftAttachment;
+  if (!originalText.trim() && !draftImage && !attachment) return;
   const button = $('#sendButton');
   button.disabled = true;
   try {
@@ -581,6 +707,15 @@ $('#messageForm').addEventListener('submit', async event => {
       await api(`/api/conversations/${state.selectedId}/messages`, {
         method: 'POST',
         body: JSON.stringify({ kind: 'image', image: { dataUrl: draftImage.dataUrl, name: draftImage.name } }),
+      });
+      clearDraftImage();
+    }
+    if (attachment) {
+      await api(`/api/conversations/${state.selectedId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify(attachment.kind === 'contact'
+          ? {kind:'contact',contactId:attachment.contactId}
+          : {kind:attachment.kind,file:attachment.file}),
       });
       clearDraftImage();
     }

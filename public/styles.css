@@ -507,3 +507,35 @@ kbd { font: inherit; border: 1px solid rgba(255,255,255,.13); padding: 2px 4px; 
   .brand-small .brand-mark { width: 48px; height: 48px; }
   .chat-main::after { opacity: .18; }
 }
+
+/* Pegasus v0.6 — menu de anexos compacto, sem cobrir a conversa */
+.composer-area { position: relative; }
+.attachment-popover {
+  position: absolute; z-index: 25; bottom: calc(100% - 12px);
+  left: clamp(14px, 4vw, 45px); width: min(252px, calc(100vw - 35px));
+  padding: 8px; border-radius: 18px; max-height: min(370px, 60dvh); overflow: auto;
+  background-color: rgba(7,23,47,.96); box-shadow: 0 16px 45px rgba(0,0,0,.45);
+}
+.attachment-options { display: grid; gap: 2px; }
+.attachment-options button, .contact-picker-list button {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 11px 12px; border: none; border-radius: 12px;
+  color: #e5f5ff; text-align: left; background: transparent; font-size: 13px;
+}
+.attachment-options button:hover, .attachment-options button:focus-visible,
+.contact-picker-list button:hover { background: rgba(117,185,243,.16); }
+.attachment-options button > span { width: 28px; height: 28px; display: grid; place-items: center;
+ border: 1px solid rgba(159,216,255,.21); background: rgba(92,168,238,.13);
+ border-radius: 9px; color: #bce6ff; font-size: 15px; font-weight: 700; }
+.contact-picker-heading { display:flex; align-items: center; gap: 9px; padding: 5px 4px; font-size:13px; }
+.contact-picker-heading button { background:transparent; color:#d7efff; border:0; font-size:22px; width:30px; }
+.contact-picker p { margin: 6px 9px 10px; font-size: 11px; line-height:1.4; color:#b4cbe4; }
+.contact-picker-list { max-height: 230px; overflow-y: auto; }
+.contact-picker-list button > span { display:flex; flex-direction:column; gap:3px; overflow:hidden; }
+.contact-picker-list button small { font-size:10px; color:#b6d5ee; }
+.attachment-preview { display:grid; place-items:center; height:58px; width:58px; flex:0 0 58px;
+ border-radius:14px; border:1px solid rgba(255,255,255,.12); background: rgba(59,112,176,.25);
+ color:#d9f1ff; font-size:25px; overflow:hidden; }
+.attachment-preview img { width:100%; height:100%; object-fit:cover; }
+.composer-hint { justify-content:flex-end; }
+@media(max-width:720px){ .attachment-popover { left:12px; bottom:calc(100% - 7px); } }
