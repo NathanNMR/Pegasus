@@ -59,6 +59,8 @@ export function setupImageEditor({ onApply, onError }) {
     mode = next;
     dialog.querySelectorAll('[data-edit-mode]').forEach(b => b.classList.toggle('active', b.dataset.editMode === next));
     canvas.style.cursor = next === 'crop' ? 'crosshair' : next === 'text' ? 'text' : 'crosshair';
+    el('editTextGroup').hidden = next !== 'text';
+    el('editBrushGroup').hidden = next !== 'draw';
     hideCrop();
   }
   async function open(file) {

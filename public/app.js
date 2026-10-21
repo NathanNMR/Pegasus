@@ -13,6 +13,8 @@ const state = {
   draftImage: null,
   addMode: 'email',
   editMessageId: null,
+  requests: {incoming:[],outgoing:[]},
+  profileAvatarDraft: '',
 };
 let toastTimer;
 let refreshing = false;
@@ -28,6 +30,18 @@ function showToast(message, isError = false) {
 }
 function initials(name) {
   return String(name || 'P').trim().split(/\s+/).slice(0, 2).map(word => word[0]?.toUpperCase() || '').join('');
+}
+function setAvatar(element, user) {
+  element.replaceChildren();
+  if (user?.avatar) {
+    const img = document.createElement('img');
+    img.src = user.avatar;
+    img.alt = '';
+    img.className = 'avatar-photo';
+    element.append(img);
+  } else {
+    element.textContent = initials(user?.name);
+  }
 }
 function readableTime(value) {
   return new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -89,12 +103,13 @@ function enterApp(user) {
   $('#chatView').hidden = false;
   $('#myName').textContent = user.name;
   $('#myEmail').textContent = user.email;
-  $('#myAvatar').textContent = initials(user.name);
+  setAvatar($('#myAvatar'),user);
   $('#myCode').textContent = user.friendCode || '······';
   if (state.events) state.events.close();
   state.events = new EventSource('/api/events');
-  state.events.addEventListener('refresh', () => refreshAll());
+  state.events.addEventListener('refresh', () => { refreshAll(); refreshRequests(); });
   refreshAll();
+  refreshRequests();
 }
 function signOut(notify = true) {
   state.events?.close();
@@ -145,7 +160,9 @@ function renderConversations() {
     item.className = 'conversation-item';
     item.classList.toggle('selected', conversation.id === state.selectedId);
     item.addEventListener('click', () => selectConversation(conversation.id));
-    item.append(text('div', 'contact-avatar', initials(conversation.partner.name)));
+    const avatar = text('div','contact-avatar','');
+    setAvatar(avatar, conversation.partner);
+    item.append(avatar);
     const content = text('div', 'conversation-text', '');
     const nameLine = text('div', 'conversation-name-row', '');
     nameLine.append(text('strong', '', conversation.partner.name));
@@ -165,8 +182,8 @@ async function selectConversation(id) {
   if (!conversation) return;
   state.currentPartner = conversation.partner;
   $('#partnerName').textContent = conversation.partner.name;
-  $('#partnerEmail').textContent = conversation.partner.email;
-  $('#partnerAvatar').textContent = initials(conversation.partner.name);
+  $('#partnerEmail').textContent = conversation.partner.bio || conversation.partner.email;
+  setAvatar($('#partnerAvatar'),conversation.partner);
   $('#welcomeScreen').hidden = true;
   $('#conversationView').hidden = false;
   $('#chatView').classList.add('chat-open');
@@ -372,17 +389,127 @@ $('#newChatForm').addEventListener('submit', async event => {
   const button = $('#createChatSubmit');
   button.disabled = true;
   try {
-    const { conversationId } = await api('/api/conversations', { method: 'POST', body: JSON.stringify(payload) });
+    const result = await api('/api/conversations', { method: 'POST', body: JSON.stringify(payload) });
     $('#newChatDialog').close();
-    await refreshAll();
-    await selectConversation(conversationId);
-    showToast('Conversa pronta!');
+    if (result.status === 'pending') {
+      showToast('Solicitação enviada. A conversa começa depois da aprovação.');
+      await refreshRequests();
+    } else if (result.status === 'incoming') {
+      showToast('Você tem uma solicitação desta pessoa. Abra Solicitações.');
+      await refreshRequests();
+      $('#requestsDialog').showModal();
+    } else {
+      await refreshAll();
+      await selectConversation(result.conversationId);
+      showToast('Conversa pronta!');
+    }
   } catch (error) {
     showToast(error.message, true);
   } finally {
     button.disabled = false;
   }
 });
+async function refreshRequests() {
+  if (!state.user) return;
+  try {
+    const data = await api('/api/chat-requests');
+    state.requests = data;
+    const count = data.incoming.length;
+    $('#requestsCount').textContent = String(count);
+    $('#requestsCount').hidden = count === 0;
+    renderRequests();
+  } catch (error) { if (state.user) showToast(error.message,true); }
+}
+function renderRequests() {
+  const list = $('#requestsList');
+  list.replaceChildren();
+  if (!state.requests.incoming.length) {
+    list.append(text('p','request-empty','Nenhuma solicitação pendente.'));
+  }
+  for (const request of state.requests.incoming) {
+    const item = text('div','request-item','');
+    const avatar=text('div','contact-avatar','');
+    setAvatar(avatar,request);
+    const info=text('div','request-info','');
+    info.append(text('strong','',request.name),text('small','',`${request.friendCode} · ${request.bio || 'Quer conversar com você'}`));
+    const actions=text('div','request-actions','');
+    for (const [label, action] of [['Aceitar','accept'],['Recusar','decline']]) {
+      const button=text('button',action==='accept'?'soft-button accept-request':'soft-button',label);
+      button.type='button';
+      button.addEventListener('click',async()=>{
+        button.disabled=true;
+        try {
+          const result=await api(`/api/chat-requests/${request.id}/${action}`,{method:'POST',body:'{}'});
+          await Promise.all([refreshRequests(),refreshAll()]);
+          if (result.conversationId) { $('#requestsDialog').close(); await selectConversation(result.conversationId); }
+          showToast(action==='accept'?'Solicitação aceita.':'Solicitação recusada.');
+        } catch(error) { showToast(error.message,true); button.disabled=false; }
+      });
+      actions.append(button);
+    }
+    item.append(avatar,info,actions);list.append(item);
+  }
+  const outgoing=state.requests.outgoing;
+  $('#requestsOutgoing').textContent=outgoing.length?`Enviadas e aguardando aprovação: ${outgoing.map(r=>r.name).join(', ')}`:'';
+}
+function openProfile() {
+  if (!state.user) return;
+  $('#profileName').textContent=state.user.name;
+  $('#profileEmail').textContent=state.user.email;
+  $('#profileCode').textContent=state.user.friendCode;
+  $('#profileBio').value=state.user.bio||'';
+  state.profileAvatarDraft=state.user.avatar||'';
+  setAvatar($('#profilePreview'),{name:state.user.name,avatar:state.profileAvatarDraft});
+  $('#profileForm').elements.privacyMode.value=state.user.privacyMode||'open';
+  $('#profileDialog').showModal();
+}
+$('#profileButton').addEventListener('click',openProfile);
+$('#closeProfile').addEventListener('click',()=>$('#profileDialog').close());
+$('#requestsButton').addEventListener('click',async()=>{await refreshRequests();$('#requestsDialog').showModal();});
+$('#closeRequests').addEventListener('click',()=>$('#requestsDialog').close());
+$('#removeProfileAvatar').addEventListener('click',()=>{
+  state.profileAvatarDraft='';
+  setAvatar($('#profilePreview'),{name:state.user.name});
+  $('#profileAvatarInput').value='';
+});
+$('#profileAvatarInput').addEventListener('change',async event=>{
+  const file=event.target.files?.[0];
+  if (!file) return;
+  if (!['image/png','image/jpeg','image/webp'].includes(file.type)) {showToast('Escolha PNG, JPG ou WEBP.',true);return;}
+  try {
+    const url=await fileToDataUrl(file);
+    const img=await new Promise((resolve,reject)=>{
+      const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('Imagem inválida.'));im.src=url;
+    });
+    const canvas=document.createElement('canvas');
+    canvas.width=160;canvas.height=160;
+    const ctx=canvas.getContext('2d');
+    const side=Math.min(img.naturalWidth,img.naturalHeight);
+    ctx.drawImage(img,(img.naturalWidth-side)/2,(img.naturalHeight-side)/2,side,side,0,0,160,160);
+    let result=canvas.toDataURL('image/jpeg',.83);
+    if (result.length > 320_000) result=canvas.toDataURL('image/jpeg',.6);
+    state.profileAvatarDraft=result;
+    setAvatar($('#profilePreview'),{name:state.user.name,avatar:result});
+  } catch(error) {showToast(error.message,true);}
+});
+$('#profileForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  const button=$('#saveProfileButton');button.disabled=true;
+  try {
+    const {user}=await api('/api/profile',{method:'PUT',body:JSON.stringify({
+      avatar:state.profileAvatarDraft,
+      bio:$('#profileBio').value,
+      privacyMode:$('#profileForm').elements.privacyMode.value,
+    })});
+    state.user=user;
+    setAvatar($('#myAvatar'),user);
+    $('#profileDialog').close();
+    showToast('Perfil salvo!');
+    await refreshAll();
+  }catch(error){showToast(error.message,true);}
+  finally{button.disabled=false;}
+});
+
 const editor = setupImageEditor({
   onApply(image) { state.draftImage = image; renderDraftImage(); },
   onError(message) { showToast(message, true); },

@@ -80,6 +80,19 @@ db.exec(`
 // Migrações aditivas: mantêm usuários, conversas e mensagens de versões anteriores.
 const userCols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
 if (!userCols.includes('friend_code')) db.exec('ALTER TABLE users ADD COLUMN friend_code TEXT');
+if (!userCols.includes('bio')) db.exec("ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT ''");
+if (!userCols.includes('avatar')) db.exec("ALTER TABLE users ADD COLUMN avatar TEXT NOT NULL DEFAULT ''");
+if (!userCols.includes('privacy_mode')) db.exec("ALTER TABLE users ADD COLUMN privacy_mode TEXT NOT NULL DEFAULT 'open'");
+db.exec(`CREATE TABLE IF NOT EXISTS chat_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  requester_id INTEGER NOT NULL REFERENCES users(id),
+  recipient_id INTEGER NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','declined')),
+  created_at TEXT NOT NULL,
+  CHECK(requester_id <> recipient_id),
+  UNIQUE(requester_id, recipient_id)
+) STRICT;
+CREATE INDEX IF NOT EXISTS chat_requests_recipient ON chat_requests(recipient_id,status)`);
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_friend_code ON users(friend_code)');
 const messageCols = db.prepare('PRAGMA table_info(messages)').all().map(c => c.name);
 if (!messageCols.includes('revision')) db.exec('ALTER TABLE messages ADD COLUMN revision INTEGER NOT NULL DEFAULT 0');
@@ -172,6 +185,27 @@ function validateImagePayload(input) {
   return { dataUrl, name, mime, size };
 }
 
+function safeUser(row) {
+  return { id: row.id, name: row.name, email: row.email,
+    friendCode: row.friend_code ?? row.friendCode,
+    bio: row.bio || '', avatar: row.avatar || '', privacyMode: row.privacy_mode || row.privacyMode || 'open' };
+}
+function profileAvatar(data) {
+  if (data === '') return '';
+  if (typeof data !== 'string' || data.length > 380_000) throw Object.assign(new Error('Foto de perfil inválida ou muito grande.'), { status: 400 });
+  const pic = validateImagePayload({dataUrl:data, name:'perfil'});
+  if (pic.mime === 'image/gif' || pic.size > 240_000) throw Object.assign(new Error('Use PNG, JPG ou WEBP de até 240 KB para a foto.'), {status:400});
+  return pic.dataUrl;
+}
+function findConversation(a, b) {
+  const [x,y] = [a,b].sort((i,j)=>i-j);
+  return db.prepare('SELECT id FROM conversations WHERE user_a=? AND user_b=?').get(x,y);
+}
+function createConversation(a,b) {
+  const [x,y] = [a,b].sort((i,j)=>i-j);
+  db.prepare('INSERT OR IGNORE INTO conversations(user_a,user_b,created_at) VALUES(?,?,?)').run(x,y,new Date().toISOString());
+  return findConversation(x,y).id;
+}
 function json(res, code, data, extraHeaders = {}) {
   res.writeHead(code, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -233,10 +267,11 @@ function hashToken(token) { return createHash('sha256').update(token).digest('he
 function currentUser(req) {
   const token = cookies(req).pegasus_session;
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
-  return db.prepare(`SELECT users.id, users.name, users.email, users.friend_code AS friendCode
+  const row = db.prepare(`SELECT users.id, users.name, users.email, users.friend_code, users.bio, users.avatar, users.privacy_mode
     FROM sessions JOIN users ON users.id = sessions.user_id
     WHERE sessions.token_hash = ? AND sessions.expires_at > ?`)
-    .get(hashToken(token), Date.now()) || null;
+    .get(hashToken(token), Date.now());
+  return row ? safeUser(row) : null;
 }
 function sessionCookie(token) {
   return `pegasus_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_MS / 1000}${isProduction ? '; Secure' : ''}`;
@@ -328,7 +363,7 @@ const server = http.createServer(async (req, res) => {
         if (error.code?.startsWith('ERR_SQLITE_CONSTRAINT')) return fail(res, 409, 'Este e-mail já está cadastrado.');
         throw error;
       }
-      return addSession(res, { id: Number(created.lastInsertRowid), name: displayName, email: normalizedEmail, friendCode });
+      return addSession(res, { id: Number(created.lastInsertRowid), name: displayName, email: normalizedEmail, friendCode, bio:'', avatar:'', privacyMode:'open' });
     }
     if (method === 'POST' && url.pathname === '/api/login') {
       if (limited(req)) return fail(res, 429, 'Muitas tentativas. Tente mais tarde.');
@@ -338,7 +373,7 @@ const server = http.createServer(async (req, res) => {
       if (!found || typeof password !== 'string' || !(await checkPassword(password, found.password_hash))) {
         return fail(res, 401, 'E-mail ou senha incorretos.');
       }
-      return addSession(res, { id: found.id, name: found.name, email: found.email, friendCode: found.friend_code });
+      return addSession(res, safeUser(found));
     }
     if (method === 'POST' && url.pathname === '/api/logout') {
       const token = cookies(req).pegasus_session;
@@ -349,6 +384,47 @@ const server = http.createServer(async (req, res) => {
       const user = currentUser(req);
       if (!user) return fail(res, 401, 'Faça login para continuar.');
       if (method === 'GET' && url.pathname === '/api/me') return json(res, 200, { user });
+      if (method === 'PUT' && url.pathname === '/api/profile') {
+        const data = await readJson(req);
+        if (typeof data.bio !== 'string' || [...data.bio].length > 240) return fail(res,400,'A bio deve ter até 240 caracteres.');
+        if (!['open','approval'].includes(data.privacyMode)) return fail(res,400,'Selecione uma opção de privacidade.');
+        const avatar = data.avatar === undefined ? user.avatar : profileAvatar(data.avatar);
+        db.prepare('UPDATE users SET bio=?, avatar=?, privacy_mode=? WHERE id=?')
+          .run(data.bio.trim(), avatar, data.privacyMode, user.id);
+        const updated = currentUser(req);
+        broadcast(user.id,{profileUpdated:true});
+        for (const row of db.prepare('SELECT user_a,user_b FROM conversations WHERE user_a=? OR user_b=?').all(user.id,user.id)) {
+          broadcast(row.user_a===user.id ? row.user_b : row.user_a,{profileUpdated:true});
+        }
+        return json(res,200,{user:updated});
+      }
+      if (method === 'GET' && url.pathname === '/api/chat-requests') {
+        const incoming = db.prepare(`SELECT r.id,r.status,r.created_at, u.id AS userId,u.name,u.friend_code AS friendCode,u.bio,u.avatar
+          FROM chat_requests r JOIN users u ON u.id=r.requester_id WHERE r.recipient_id=? AND r.status='pending' ORDER BY r.id DESC`).all(user.id);
+        const outgoing = db.prepare(`SELECT r.id,r.status,r.created_at,u.name,u.friend_code AS friendCode
+          FROM chat_requests r JOIN users u ON u.id=r.recipient_id WHERE r.requester_id=? AND r.status='pending' ORDER BY r.id DESC`).all(user.id);
+        return json(res,200,{incoming,outgoing});
+      }
+      const decision = url.pathname.match(/^\/api\/chat-requests\/(\d+)\/(accept|decline)$/);
+      if (method==='POST' && decision) {
+        const requestId = Number(decision[1]);
+        const request = db.prepare("SELECT * FROM chat_requests WHERE id=? AND recipient_id=? AND status='pending'").get(requestId,user.id);
+        if (!request) return fail(res,404,'Solicitação não encontrada.');
+        const approved = decision[2] === 'accept';
+        let conversationId = null;
+        db.exec('BEGIN IMMEDIATE');
+        try {
+          const changed = db.prepare("UPDATE chat_requests SET status=? WHERE id=? AND recipient_id=? AND status='pending'")
+            .run(approved ? 'accepted' : 'declined',requestId,user.id);
+          if (changed.changes !== 1) { db.exec('ROLLBACK'); return fail(res,409,'Solicitação já foi respondida.'); }
+          if (approved) conversationId = createConversation(request.requester_id,user.id);
+          db.exec('COMMIT');
+        } catch(error) { db.exec('ROLLBACK'); throw error; }
+        broadcast(user.id,{requestsUpdated:true});
+        broadcast(request.requester_id,{requestsUpdated:true});
+        return json(res,200,{ok:true,approved,conversationId});
+      }
+
       if (method === 'GET' && url.pathname === '/api/events') {
         res.writeHead(200, {
           'Content-Type': 'text/event-stream; charset=utf-8',
@@ -372,7 +448,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (method === 'GET' && url.pathname === '/api/conversations') {
         const rows = db.prepare(`SELECT c.id, c.created_at, u.id AS partner_id, u.name AS partner_name,
-           u.email AS partner_email, m.id AS message_id, m.encrypted_body, m.created_at AS last_message_at
+           u.email AS partner_email, u.avatar AS partner_avatar, u.bio AS partner_bio, m.id AS message_id, m.encrypted_body, m.created_at AS last_message_at
            FROM conversations c
            JOIN users u ON u.id = CASE WHEN c.user_a = ? THEN c.user_b ELSE c.user_a END
            LEFT JOIN messages m ON m.id = (
@@ -386,7 +462,7 @@ const server = http.createServer(async (req, res) => {
             return {
               id: row.id,
               createdAt: row.created_at,
-              partner: { id: row.partner_id, name: row.partner_name, email: row.partner_email },
+              partner: { id: row.partner_id, name: row.partner_name, email: row.partner_email, avatar: row.partner_avatar || '', bio: row.partner_bio || '' },
               lastMessage: row.message_id ? {
                 id: row.message_id,
                 kind: parsed.kind,
@@ -404,16 +480,31 @@ const server = http.createServer(async (req, res) => {
         const byEmail = typeof email === 'string' && email.trim().length > 0;
         if (byCode === byEmail) return fail(res, 400, 'Informe um e-mail ou código Pegasus.');
         const partner = byCode
-          ? db.prepare('SELECT id FROM users WHERE friend_code = ?').get(friendCode.trim().toUpperCase())
-          : db.prepare('SELECT id FROM users WHERE email = ?').get(email.trim().toLowerCase());
-        if (!partner) return fail(res, 404, 'Usuário não encontrado.');
-        if (partner.id === user.id) return fail(res, 400, 'Você não pode conversar consigo mesmo.');
-        const [a, b] = [user.id, partner.id].sort((x, y) => x - y);
-        db.prepare('INSERT OR IGNORE INTO conversations (user_a,user_b,created_at) VALUES (?,?,?)')
-          .run(a, b, new Date().toISOString());
-        const row = db.prepare('SELECT id FROM conversations WHERE user_a=? AND user_b=?').get(a, b);
-        broadcast(a, { conversationId: row.id }); broadcast(b, { conversationId: row.id });
-        return json(res, 200, { conversationId: row.id });
+          ? db.prepare('SELECT id, privacy_mode FROM users WHERE friend_code = ?').get(friendCode.trim().toUpperCase())
+          : db.prepare('SELECT id, privacy_mode FROM users WHERE email = ?').get(email.trim().toLowerCase());
+        if (!partner) return fail(res,404,'Usuário não encontrado.');
+        if (partner.id === user.id) return fail(res,400,'Você não pode conversar consigo mesmo.');
+        const existing = findConversation(user.id,partner.id);
+        if (existing) return json(res,200,{conversationId:existing.id,status:'connected'});
+        if (partner.privacy_mode === 'approval') {
+          // Sem criar conversa nem permitir mensagens antes da aprovação.
+          const prior = db.prepare('SELECT id,status FROM chat_requests WHERE requester_id=? AND recipient_id=?').get(user.id,partner.id);
+          if (prior?.status === 'declined') return fail(res,403,'Este usuário recusou a solicitação.');
+          if (prior?.status === 'pending') return json(res,200,{status:'pending'});
+          const reciprocal = db.prepare("SELECT id FROM chat_requests WHERE requester_id=? AND recipient_id=? AND status='pending'").get(partner.id,user.id);
+          if (reciprocal) {
+            // Se o destinatário já pediu para falar com você, aceitar equivale a uma aprovação explícita.
+            return json(res,200,{status:'incoming',message:'Você já recebeu uma solicitação desta pessoa. Aceite-a na sua caixa de solicitações.'});
+          }
+          db.prepare('INSERT INTO chat_requests(requester_id,recipient_id,status,created_at) VALUES(?,?,?,?)')
+            .run(user.id,partner.id,'pending',new Date().toISOString());
+          broadcast(partner.id,{requestsUpdated:true});
+          return json(res,202,{status:'pending'});
+        }
+        const conversationId=createConversation(user.id,partner.id);
+        db.prepare("UPDATE chat_requests SET status='accepted' WHERE ((requester_id=? AND recipient_id=?) OR (requester_id=? AND recipient_id=?)) AND status='pending'").run(user.id,partner.id,partner.id,user.id);
+        broadcast(user.id,{conversationId});broadcast(partner.id,{conversationId});
+        return json(res,200,{conversationId,status:'connected'});
       }
       const match = url.pathname.match(/^\/api\/conversations\/(\d+)\/messages$/);
       if (match) {
