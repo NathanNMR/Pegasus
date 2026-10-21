@@ -429,3 +429,81 @@ kbd { font: inherit; border: 1px solid rgba(255,255,255,.13); padding: 2px 4px; 
  .profile-dialog,.requests-dialog { padding:19px; }
  .request-button { min-width:38px; }
 }
+
+/* v0.5: identidade visual com o emblema selecionado e céu galáctico realçado */
+.atmosphere {
+  z-index: 0;
+  background-image: linear-gradient(160deg,rgba(3,11,28,.12),rgba(2,12,35,.3)),url('/pegasus-galaxy.svg');
+  background-size: cover;
+  background-position: center;
+}
+.glow-one { opacity: .35; }
+.glow-two { opacity: .32; }
+.glow-three { opacity: .28; }
+.starfield { opacity: .3; }
+.pegasus-constellation {
+  width: min(72vw, 780px);
+  right: max(1vw, 10px);
+  top: 16vh;
+  bottom: auto;
+  opacity: .86;
+  filter: drop-shadow(0 0 20px rgba(72,162,248,.65));
+}
+.auth-shell, .messenger { position: relative; z-index: 1; }
+.messenger { background-color: rgba(4,13,32,.32); }
+.chat-main { isolation: isolate; }
+.chat-main::after {
+  content: '';
+  position: absolute;
+  inset: 4% 2% 3% 6%;
+  z-index: 0;
+  background-image: url('/pegasus-constellation.svg');
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: .34;
+  pointer-events: none;
+}
+.chat-main > * { position: relative; z-index: 1; }
+.brand-mark { background: transparent; border-radius: 50%; overflow: hidden; padding: 0; border-color: rgba(110,210,255,.5); }
+.brand-mark .pegasus-logo { width: 100%; height: 100%; object-fit: cover; filter: none; }
+.brand-large .brand-mark { width: 74px; height: 74px; }
+.brand-small .brand-mark { width: 53px; height: 53px; border-radius: 50%; }
+.welcome-symbol { overflow: hidden; border-radius: 50%; }
+.welcome-symbol img { width: 100%; height: 100%; object-fit: cover; }
+.message-bubble { overflow: hidden; }
+.message-context-menu {
+  position: fixed;
+  z-index: 1100;
+  width: 185px;
+  padding: 6px;
+  background: linear-gradient(155deg, rgba(22,48,84,.98),rgba(8,23,48,.99));
+  border: 1px solid rgba(156,220,255,.40);
+  border-radius: 15px;
+  box-shadow: 0 15px 35px rgba(0,0,0,.5), inset 0 1px rgba(255,255,255,.12);
+  backdrop-filter: blur(22px);
+}
+.message-context-menu button {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 9px;
+  padding: 10px 12px;
+  text-align: left;
+  background: transparent;
+  color: #e9f6ff;
+  font-size: 13px;
+}
+.message-context-menu button:hover, .message-context-menu button:focus-visible { background: rgba(114,191,255,.21); }
+.message-context-menu button.destructive { color: #ffc0cc; }
+.message-row .message-bubble { cursor: context-menu; }
+.message-row .message-bubble:focus-visible { outline: 2px solid #7dd3ff; outline-offset: 3px; }
+/* A posição das mensagens permanece: próprias à direita, recebidas à esquerda. */
+.message-row.mine { justify-content: flex-end; }
+.message-row.theirs { justify-content: flex-start; }
+@media (max-width: 720px) {
+  .pegasus-constellation { display: block; width: 110vw; right: -26vw; top: 22vh; opacity: .27; }
+  .brand-large .brand-mark { width: 52px; height: 52px; }
+  .brand-small .brand-mark { width: 48px; height: 48px; }
+  .chat-main::after { opacity: .18; }
+}

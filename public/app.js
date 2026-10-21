@@ -112,6 +112,7 @@ function enterApp(user) {
   refreshRequests();
 }
 function signOut(notify = true) {
+  hideMessageContextMenu();
   state.events?.close();
   state.events = null;
   state.user = null;
@@ -174,6 +175,7 @@ function renderConversations() {
   }
 }
 async function selectConversation(id) {
+  hideMessageContextMenu();
   if (!state.user) return;
   state.selectedId = id;
   state.messages = [];
@@ -206,6 +208,73 @@ async function refreshMessages() {
   renderMessages();
   if (isNearBottom || !previousSignature) requestAnimationFrame(() => { scrollbox.scrollTop = scrollbox.scrollHeight; });
 }
+function hideMessageContextMenu() { $('#messageContextMenu').hidden = true; }
+function showMessageContextMenu(message, x, y) {
+  const menu = $('#messageContextMenu');
+  menu.replaceChildren();
+  const mine = message.senderId === state.user?.id;
+  function option(label, action, destructive = false) {
+    const button = text('button', destructive ? 'destructive' : '', label);
+    button.type = 'button';
+    button.setAttribute('role', 'menuitem');
+    button.addEventListener('click', async () => {
+      hideMessageContextMenu();
+      try { await action(); }
+      catch (error) { showToast(error.message, true); }
+    });
+    menu.append(button);
+  }
+  if (mine && message.kind === 'text') {
+    option('✎ Editar mensagem', () => {
+      state.editMessageId = message.id;
+      $('#editMessageInput').value = safeDecode(message.ciphertext);
+      $('#editMessageDialog').showModal();
+      $('#editMessageInput').focus();
+    });
+  }
+  if (message.kind === 'text') {
+    option('⧉ Copiar texto', async () => {
+      await navigator.clipboard.writeText(safeDecode(message.ciphertext));
+      showToast('Texto copiado!');
+    });
+  } else {
+    option('↓ Salvar imagem', () => {
+      const download = document.createElement('a');
+      download.href = message.image.dataUrl;
+      download.download = message.image.name || 'imagem-pegasus.png';
+      document.body.append(download);
+      download.click();
+      download.remove();
+    });
+  }
+  if (mine) {
+    option('⌫ Apagar para todos', async () => {
+      if (!window.confirm('Apagar esta mensagem para todos, sem aviso na conversa?')) return;
+      await api(`/api/conversations/${message.conversationId}/messages/${message.id}`, { method: 'DELETE' });
+      await refreshAll();
+    }, true);
+  } else {
+    option('⌫ Apagar só para mim', async () => {
+      await api(`/api/conversations/${message.conversationId}/messages/${message.id}/hide`, {
+        method: 'POST', body: '{}',
+      });
+      await refreshAll();
+    }, true);
+  }
+  menu.hidden = false;
+  menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - menu.offsetWidth - 8))}px`;
+  menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - menu.offsetHeight - 8))}px`;
+  menu.querySelector('button')?.focus();
+}
+document.addEventListener('pointerdown', event => {
+  if (!$('#messageContextMenu').contains(event.target)) hideMessageContextMenu();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') hideMessageContextMenu();
+});
+window.addEventListener('resize', hideMessageContextMenu);
+document.addEventListener('scroll', hideMessageContextMenu, true);
+
 function renderMessages() {
   const list = $('#messageList');
   list.replaceChildren();
@@ -243,57 +312,30 @@ function renderMessages() {
 
     const details = text('div', 'message-details', '');
     details.append(text('time', '', readableTime(message.createdAt)));
-    if (message.kind === 'text') {
-      const toggle = document.createElement('button');
-      toggle.type = 'button';
-      toggle.className = 'cipher-toggle';
-      toggle.textContent = 'Ver código PG1';
-      toggle.setAttribute('aria-label', 'Mostrar ou ocultar código Pegasus da mensagem');
-      const code = text('pre', 'cipher-output', message.ciphertext);
-      code.hidden = true;
-      toggle.addEventListener('click', () => {
-        code.hidden = !code.hidden;
-        toggle.textContent = code.hidden ? 'Ver código PG1' : 'Ocultar código';
-      });
-      details.append(toggle);
-      bubble.append(details, code);
-    } else {
-      bubble.append(details);
-    }
-
-    if (mine) {
-      const menu = document.createElement('details');
-      menu.className = 'message-options';
-      const trigger = document.createElement('summary');
-      trigger.textContent = '⋯';
-      trigger.title = 'Opções da mensagem';
-      trigger.setAttribute('aria-label', 'Opções da mensagem');
-      const options = text('div', 'message-options-panel', '');
-      if (message.kind === 'text') {
-        const edit = text('button', '', '✎ Editar');
-        edit.type = 'button';
-        edit.addEventListener('click', () => {
-          menu.open = false;
-          state.editMessageId = message.id;
-          $('#editMessageInput').value = safeDecode(message.ciphertext);
-          $('#editMessageDialog').showModal();
-          $('#editMessageInput').focus();
-        });
-        options.append(edit);
+    // Exibe apenas o conteúdo interpretado; a transformação matemática não é mostrada na conversa.
+    bubble.append(details);
+    bubble.tabIndex = 0;
+    bubble.setAttribute('aria-label', mine ? 'Sua mensagem. Clique com o botão direito para opções.' : 'Mensagem recebida. Clique com o botão direito para opções.');
+    bubble.addEventListener('contextmenu', event => {
+      event.preventDefault();
+      showMessageContextMenu(message, event.clientX, event.clientY);
+    });
+    bubble.addEventListener('keydown', event => {
+      if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+        event.preventDefault();
+        const rect = bubble.getBoundingClientRect();
+        showMessageContextMenu(message, rect.left + Math.min(rect.width, 150), rect.bottom);
       }
-      const erase = text('button', 'delete-option', '⌫ Apagar');
-      erase.type = 'button';
-      erase.addEventListener('click', async () => {
-        menu.open = false;
-        if (!window.confirm('Apagar esta mensagem para as duas pessoas? Não haverá aviso no chat.')) return;
-        try {
-          await api(`/api/conversations/${message.conversationId}/messages/${message.id}`, { method: 'DELETE' });
-          await refreshAll();
-        } catch (error) { showToast(error.message, true); }
-      });
-      options.append(erase);
-      menu.append(trigger, options);
-      bubble.append(menu);
+    });
+    let touchTimer;
+    bubble.addEventListener('touchstart', event => {
+      const point = event.touches[0];
+      const x = point.clientX, y = point.clientY;
+      clearTimeout(touchTimer);
+      touchTimer = setTimeout(() => showMessageContextMenu(message, x, y), 600);
+    }, { passive: true });
+    for (const name of ['touchend', 'touchmove', 'touchcancel']) {
+      bubble.addEventListener(name, () => clearTimeout(touchTimer), { passive: true });
     }
     wrapper.append(bubble);
     list.append(wrapper);

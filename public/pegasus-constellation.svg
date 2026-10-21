@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="590" viewBox="0 0 860 590" fill="none" role="presentation">
+ <defs><filter id="glow"><feGaussianBlur stdDeviation="4"/></filter></defs>
+ <g stroke="#96dfff" stroke-width="2" stroke-linecap="round" opacity=".9">
+ <path d="M230 155 470 130 520 335 270 370Z"/>
+ <path d="M230 155 120 115 75 200"/>
+ <path d="M270 370 215 490 95 510"/>
+ <path d="M520 335 625 270 710 208 780 227"/>
+ <path d="M625 270 610 405"/>
+ </g>
+ <g fill="#c3f4ff" opacity=".6" filter="url(#glow)">
+<circle cx="230" cy="155" r="10"/><circle cx="470" cy="130" r="10"/><circle cx="270" cy="370" r="10"/><circle cx="520" cy="335" r="10"/><circle cx="120" cy="115" r="10"/><circle cx="780" cy="227" r="10"/><circle cx="625" cy="270" r="10"/><circle cx="610" cy="405" r="10"/><circle cx="75" cy="200" r="10"/><circle cx="215" cy="490" r="10"/><circle cx="95" cy="510" r="10"/><circle cx="710" cy="208" r="10"/></g><g fill="#f9ffff"><circle cx="230" cy="155" r="4.7"/><circle cx="470" cy="130" r="4.7"/><circle cx="270" cy="370" r="4.7"/><circle cx="520" cy="335" r="4.7"/><circle cx="120" cy="115" r="3.6"/><circle cx="780" cy="227" r="3.6"/><circle cx="625" cy="270" r="3.6"/><circle cx="610" cy="405" r="3.6"/><circle cx="75" cy="200" r="3.6"/><circle cx="215" cy="490" r="3.6"/><circle cx="95" cy="510" r="3.6"/><circle cx="710" cy="208" r="3.6"/></g><g fill="#d8f0ff" opacity=".9" font-family="system-ui,sans-serif" font-size="15" letter-spacing="1.5"><text x="183" y="136">Scheat</text><text x="486" y="110">Alpheratz</text><text x="234" y="394">Markab</text><text x="534" y="360">Algenib</text><text x="774" y="206">Enif</text><text x="590" y="252">Homam</text></g><text x="320" y="556" fill="#a3cdee" font-size="19" letter-spacing="9" font-family="serif" opacity=".75">PEGASUS</text></svg>

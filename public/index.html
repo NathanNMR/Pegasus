@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#09162f" />
   <meta name="description" content="Pegasus — conversas de texto e imagens em uma interface galáctica." />
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/favicon.png" type="image/png" />
   <link rel="stylesheet" href="/styles.css" />
   <title>Pegasus — Mensagens</title>
   <script type="module" src="/app.js"></script>
@@ -17,38 +17,20 @@
     <span class="glow glow-three"></span>
     <span class="grain"></span>
     <span class="starfield"></span>
-    <svg class="pegasus-constellation" viewBox="0 0 760 420" fill="none" aria-hidden="true">
-      <path d="M72 308 142 252 236 278 310 190 420 160 516 224 620 182 690 116" />
-      <path d="M142 252 176 170 310 190 352 112 420 160 472 84 620 182" />
-      <path d="M236 278 274 350 420 160" />
-      <g>
-        <circle cx="72" cy="308" r="6" />
-        <circle cx="142" cy="252" r="5" />
-        <circle cx="176" cy="170" r="4.5" />
-        <circle cx="236" cy="278" r="5" />
-        <circle cx="274" cy="350" r="4.5" />
-        <circle cx="310" cy="190" r="5.5" />
-        <circle cx="352" cy="112" r="5" />
-        <circle cx="420" cy="160" r="6" />
-        <circle cx="472" cy="84" r="4.5" />
-        <circle cx="516" cy="224" r="5" />
-        <circle cx="620" cy="182" r="5.5" />
-        <circle cx="690" cy="116" r="5" />
-      </g>
-    </svg>
+    <img class="pegasus-constellation" src="/pegasus-constellation.svg" alt="" />
   </div>
 
   <section id="authView" class="auth-shell" aria-label="Acesso ao Pegasus">
     <div class="auth-story">
       <div class="brand brand-large">
-        <div class="brand-mark" aria-hidden="true"><img class="pegasus-logo" src="/pegasus-logo.svg" alt="" /></div>
+        <div class="brand-mark" aria-hidden="true"><img class="pegasus-logo" src="/pegasus-logo.png" alt="" /></div>
         <span>PEGASUS</span>
       </div>
       <div class="story-content">
         <span class="eyebrow"><span class="sparkle">✧</span> TEXTO E IMAGENS</span>
         <h1>Conversas sob a<br /><em>constelação de Pegasus.</em></h1>
         <p>Um espaço para suas mensagens, agora com visual mais azul, alinhamento clássico de chat e envio de imagens na primeira evolução do projeto.</p>
-        <div class="hero-features"><span>✧ Chat em tempo real</span><span>✧ Envio de imagens</span><span>✧ Código PG1</span></div>
+        <div class="hero-features"><span>✧ Chat em tempo real</span><span>✧ Envio de imagens</span><span>✧ Conversas privadas</span></div>
       </div>
       <div class="story-art" aria-hidden="true"><span class="star-a">✦</span><span class="star-b">✧</span><span class="art-letter">P</span></div>
       <div class="story-bottom"><span>EST. 2026</span><span>GALÁXIA · PEGASUS · MENSAGENS</span></div>
@@ -63,7 +45,7 @@
         <label class="field-group"><span>Senha</span><input id="passwordInput" name="password" type="password" placeholder="Pelo menos 8 caracteres" minlength="8" required autocomplete="current-password" /></label>
         <button id="authSubmit" class="primary-button auth-submit" type="submit"><span>Entrar no Pegasus</span><span aria-hidden="true">↗</span></button>
       </form>
-      <div class="auth-foot"><span class="shield-symbol">✧</span><span>Suas senhas são armazenadas com hash seguro. Mensagens de texto usam PG1 e imagens ficam protegidas no armazenamento do servidor.</span></div>
+      <div class="auth-foot"><span class="shield-symbol">✧</span><span>Sua conta é protegida por senha e as mensagens ficam protegidas no armazenamento do servidor.</span></div>
     </div>
   </section>
 
@@ -71,10 +53,10 @@
     <aside class="sidebar" aria-label="Suas conversas">
       <div class="sidebar-top">
         <div class="brand brand-small">
-          <div class="brand-mark" aria-hidden="true"><img class="pegasus-logo" src="/pegasus-logo.svg" alt="" /></div>
+          <div class="brand-mark" aria-hidden="true"><img class="pegasus-logo" src="/pegasus-logo.png" alt="" /></div>
           <span>PEGASUS</span>
         </div>
-        <span class="version-pill">BETA · 04</span>
+        
       </div>
       <div class="inbox-heading"><div><span class="eyebrow">SEU ESPAÇO</span><h2>Mensagens<span class="heading-spark">✧</span></h2></div><button id="requestsButton" type="button" class="request-button" aria-label="Solicitações de conversa" title="Solicitações de conversa">✉ <span id="requestsCount" hidden>0</span></button><button id="newChatButton" type="button" class="add-button" aria-label="Nova conversa" title="Nova conversa">+</button></div>
       <label class="search-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6"/><path d="m16 16 5 5"/></svg><input id="searchInput" type="search" placeholder="Buscar conversa" aria-label="Buscar conversa" /></label>
@@ -84,9 +66,9 @@
     </aside>
 
     <main class="chat-main" aria-label="Área de mensagens">
-      <section class="welcome-screen" id="welcomeScreen"><div class="welcome-symbol" aria-hidden="true"><img src="/pegasus-logo.svg" alt="" /></div><span class="eyebrow">O COMEÇO DE UMA CONVERSA</span><h2>Toda história começa<br /><em>com uma mensagem.</em></h2><p>Escolha uma conversa ao lado ou encontre alguém pelo e-mail para começar. Agora você também pode compartilhar imagens.</p><button id="welcomeNewChat" class="primary-button" type="button">Nova conversa <span aria-hidden="true">↗</span></button><div class="welcome-decoration" aria-hidden="true">❧ ─── ✧ ─── ❧</div></section>
+      <section class="welcome-screen" id="welcomeScreen"><div class="welcome-symbol" aria-hidden="true"><img src="/pegasus-logo.png" alt="" /></div><span class="eyebrow">O COMEÇO DE UMA CONVERSA</span><h2>Toda história começa<br /><em>com uma mensagem.</em></h2><p>Escolha uma conversa ao lado ou encontre alguém pelo e-mail para começar. Agora você também pode compartilhar imagens.</p><button id="welcomeNewChat" class="primary-button" type="button">Nova conversa <span aria-hidden="true">↗</span></button><div class="welcome-decoration" aria-hidden="true">❧ ─── ✧ ─── ❧</div></section>
       <section id="conversationView" class="conversation-view" hidden>
-        <header class="chat-header"><button id="backButton" type="button" class="back-button" title="Voltar às conversas" aria-label="Voltar às conversas">←</button><div id="partnerAvatar" class="contact-avatar large">A</div><div class="contact-meta"><strong id="partnerName">Contato</strong><span id="partnerEmail">Conversa no Pegasus</span></div><div class="header-action"><span class="secure-badge">✧ PG1 · IMAGENS · GIF</span></div></header>
+        <header class="chat-header"><button id="backButton" type="button" class="back-button" title="Voltar às conversas" aria-label="Voltar às conversas">←</button><div id="partnerAvatar" class="contact-avatar large">A</div><div class="contact-meta"><strong id="partnerName">Contato</strong><span id="partnerEmail">Conversa no Pegasus</span></div><div class="header-action"><span class="secure-badge">✧ Conversa privada</span></div></header>
         <div id="messageList" class="message-list" role="log" aria-label="Mensagens desta conversa" aria-live="polite"></div>
         <div class="composer-area">
           <div id="composerMedia" class="composer-media glass-inset" hidden>
@@ -104,7 +86,7 @@
             <textarea id="messageInput" name="message" rows="1" maxlength="4000" placeholder="Escreva sua mensagem..." aria-label="Sua mensagem"></textarea>
             <button id="sendButton" type="submit" class="send-button" title="Enviar mensagem" aria-label="Enviar mensagem"><svg viewBox="0 0 24 24" fill="none"><path d="M4 12 20 4l-5.8 16-3.1-7.1L4 12Z"/><path d="M11.1 12.9 20 4"/></svg></button>
           </form>
-          <div class="composer-hint"><span>✧ PG1 · imagens até 2,5 MB · GIFs até 4 MB</span><span><kbd>Enter</kbd> para enviar · <kbd>Shift + Enter</kbd> para pular linha</span></div>
+          <div class="composer-hint"><span>✧ Imagens até 2,5 MB · GIFs até 4 MB</span><span><kbd>Enter</kbd> para enviar · <kbd>Shift + Enter</kbd> para pular linha</span></div>
         </div>
       </section>
     </main>
@@ -163,6 +145,7 @@
   <dialog id="requestsDialog" class="mini-modal glass requests-dialog" aria-label="Solicitações de conversa">
     <div class="mini-modal-content"><header class="profile-heading"><div><span class="eyebrow">CONTATOS</span><h2>Solicitações</h2></div><button id="closeRequests" type="button" class="dialog-close-inline" aria-label="Fechar">×</button></header><p>Pessoas que querem iniciar uma conversa com você.</p><div id="requestsList" class="requests-list"></div><p id="requestsOutgoing" class="request-outgoing"></p></div>
   </dialog>
+  <div id="messageContextMenu" class="message-context-menu" role="menu" aria-label="Opções da mensagem" hidden></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 </body>
 </html>

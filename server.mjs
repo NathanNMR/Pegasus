@@ -96,6 +96,13 @@ CREATE INDEX IF NOT EXISTS chat_requests_recipient ON chat_requests(recipient_id
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_friend_code ON users(friend_code)');
 const messageCols = db.prepare('PRAGMA table_info(messages)').all().map(c => c.name);
 if (!messageCols.includes('revision')) db.exec('ALTER TABLE messages ADD COLUMN revision INTEGER NOT NULL DEFAULT 0');
+// Mensagens recebidas podem ser ocultadas pelo destinatário sem alterar o histórico alheio.
+db.exec(`CREATE TABLE IF NOT EXISTS message_hides (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  PRIMARY KEY(user_id, message_id)
+) STRICT;
+CREATE INDEX IF NOT EXISTS message_hides_message_id ON message_hides(message_id)`);
 const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 function uniqueFriendCode() {
   for (let i = 0; i < 80; i++) {
@@ -324,8 +331,11 @@ const staticFiles = new Map([
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/cipher.js', ['cipher.js', 'text/javascript; charset=utf-8']],
   ['/editor.js', ['editor.js', 'text/javascript; charset=utf-8']],
-  ['/pegasus-logo.svg', ['pegasus-logo.svg', 'image/svg+xml']],
-  ['/favicon.svg', ['favicon.svg', 'image/svg+xml']],
+  
+  ['/favicon.png', ['favicon.png', 'image/png']],
+  ['/pegasus-logo.png', ['pegasus-logo.png', 'image/png']],
+  ['/pegasus-galaxy.svg', ['pegasus-galaxy.svg', 'image/svg+xml']],
+  ['/pegasus-constellation.svg', ['pegasus-constellation.svg', 'image/svg+xml']],
 ]);
 
 const server = http.createServer(async (req, res) => {
@@ -452,10 +462,12 @@ const server = http.createServer(async (req, res) => {
            FROM conversations c
            JOIN users u ON u.id = CASE WHEN c.user_a = ? THEN c.user_b ELSE c.user_a END
            LEFT JOIN messages m ON m.id = (
-             SELECT id FROM messages WHERE conversation_id = c.id ORDER BY id DESC LIMIT 1
+             SELECT id FROM messages WHERE conversation_id = c.id
+               AND NOT EXISTS (SELECT 1 FROM message_hides h WHERE h.message_id = messages.id AND h.user_id = ?)
+             ORDER BY id DESC LIMIT 1
            )
            WHERE c.user_a = ? OR c.user_b = ?
-           ORDER BY COALESCE(m.id, 0) DESC, c.id DESC`).all(user.id, user.id, user.id);
+           ORDER BY COALESCE(m.id, 0) DESC, c.id DESC`).all(user.id, user.id, user.id, user.id);
         return json(res, 200, {
           conversations: rows.map(row => {
             const parsed = row.message_id ? unpackStoredMessage(row.encrypted_body) : null;
@@ -513,8 +525,10 @@ const server = http.createServer(async (req, res) => {
         if (method === 'GET') {
           const rows = db.prepare(`SELECT * FROM (
             SELECT id, conversation_id, sender_id, encrypted_body, created_at, revision
-            FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 100
-          ) ORDER BY id ASC`).all(conversationId);
+            FROM messages WHERE conversation_id = ?
+              AND NOT EXISTS (SELECT 1 FROM message_hides h WHERE h.message_id = messages.id AND h.user_id = ?)
+            ORDER BY id DESC LIMIT 100
+          ) ORDER BY id ASC`).all(conversationId, user.id);
           return json(res, 200, { messages: rows.map(toMessage) });
         }
         if (method === 'POST') {
@@ -558,6 +572,18 @@ const server = http.createServer(async (req, res) => {
             },
           });
         }
+      }
+      // Ocultar uma mensagem apenas para a conta atual. O remetente nunca perde a mensagem.
+      const hideMatch = url.pathname.match(/^\/api\/conversations\/(\d+)\/messages\/(\d+)\/hide$/);
+      if (hideMatch && method === 'POST') {
+        const conversationId = Number(hideMatch[1]);
+        const messageId = Number(hideMatch[2]);
+        if (!canReadConversation(user.id, conversationId)) return fail(res, 404, 'Conversa não encontrada.');
+        const original = db.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(messageId, conversationId);
+        if (!original) return fail(res, 404, 'Mensagem não encontrada.');
+        db.prepare('INSERT OR IGNORE INTO message_hides(user_id,message_id) VALUES(?,?)').run(user.id,messageId);
+        broadcast(user.id,{conversationId});
+        return json(res,200,{ok:true});
       }
       // Alterar/apagar somente as próprias mensagens. Sem marcador ou aviso no chat.
       const ownMessageMatch = url.pathname.match(/^\/api\/conversations\/(\d+)\/messages\/(\d+)$/);
