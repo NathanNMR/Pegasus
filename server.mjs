@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import {
   randomBytes, createHash, createCipheriv, createDecipheriv,
-  scrypt as scryptCallback, timingSafeEqual,
+  scrypt as scryptCallback, timingSafeEqual, randomInt,
 } from 'node:crypto';
 import { promisify } from 'node:util';
 import { decodePegasus, encodePegasus } from './public/cipher.js';
@@ -18,6 +18,10 @@ const PORT = Number(process.env.PORT ?? 3000);
 const isProduction = process.env.NODE_ENV === 'production';
 const SESSION_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_MESSAGE_LENGTH = 4000;
+const MAX_JSON_BYTES = 7_500_000;
+const MAX_IMAGE_BYTES = 2_500_000;
+const MAX_GIF_BYTES = 4_000_000;
+const ALLOWED_IMAGE_MIME = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 
 await mkdir(dataDir, { recursive: true, mode: 0o700 });
 let messageKey;
@@ -73,11 +77,28 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS messages_by_conversation ON messages(conversation_id, id DESC);
   CREATE INDEX IF NOT EXISTS sessions_by_expiry ON sessions(expires_at);
 `);
+// Migrações aditivas: mantêm usuários, conversas e mensagens de versões anteriores.
+const userCols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+if (!userCols.includes('friend_code')) db.exec('ALTER TABLE users ADD COLUMN friend_code TEXT');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_friend_code ON users(friend_code)');
+const messageCols = db.prepare('PRAGMA table_info(messages)').all().map(c => c.name);
+if (!messageCols.includes('revision')) db.exec('ALTER TABLE messages ADD COLUMN revision INTEGER NOT NULL DEFAULT 0');
+const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function uniqueFriendCode() {
+  for (let i = 0; i < 80; i++) {
+    const code = Array.from({ length: 6 }, () => alphabet[randomInt(alphabet.length)]).join('');
+    if (!db.prepare('SELECT 1 FROM users WHERE friend_code=?').get(code)) return code;
+  }
+  throw new Error('Não foi possível gerar um código único.');
+}
+for (const row of db.prepare('SELECT id FROM users WHERE friend_code IS NULL').all()) {
+  db.prepare('UPDATE users SET friend_code=? WHERE id=?').run(uniqueFriendCode(), row.id);
+}
 
-function encryptAtRest(ciphertext) {
+function encryptAtRest(value) {
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', messageKey, iv);
-  const encrypted = Buffer.concat([cipher.update(ciphertext, 'utf8'), cipher.final()]);
+  const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
   return [iv, cipher.getAuthTag(), encrypted].map(b => b.toString('base64url')).join('.');
 }
 function decryptAtRest(stored) {
@@ -87,6 +108,68 @@ function decryptAtRest(stored) {
   const decipher = createDecipheriv('aes-256-gcm', messageKey, iv);
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
+}
+function packStoredMessage(payload) { return encryptAtRest(JSON.stringify({ version: 2, ...payload })); }
+function unpackStoredMessage(stored) {
+  const raw = decryptAtRest(stored);
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.version === 2 && parsed.kind === 'text' && typeof parsed.ciphertext === 'string') {
+      return { kind: 'text', ciphertext: parsed.ciphertext };
+    }
+    if (parsed && parsed.version === 2 && parsed.kind === 'image' && parsed.image && typeof parsed.image.dataUrl === 'string') {
+      return {
+        kind: 'image',
+        image: {
+          dataUrl: parsed.image.dataUrl,
+          name: String(parsed.image.name || 'imagem'),
+          mime: String(parsed.image.mime || ''),
+          size: Number(parsed.image.size || 0),
+        },
+      };
+    }
+  } catch {
+    // compatibilidade com mensagens da v0.1
+  }
+  return { kind: 'text', ciphertext: raw };
+}
+function previewMessage(message) {
+  if (!message) return null;
+  if (message.kind === 'image') return message.image?.mime === 'image/gif' ? '🎞️ GIF' : '🖼️ Imagem';
+  try { return decodePegasus(message.ciphertext).replace(/\s+/g, ' ').trim() || 'Mensagem'; }
+  catch { return 'Mensagem'; }
+}
+function estimateBase64Bytes(base64) {
+  const clean = base64.replace(/\s+/g, '');
+  const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
+  return Math.floor((clean.length * 3) / 4) - padding;
+}
+function validateImagePayload(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw Object.assign(new Error('Imagem inválida.'), { status: 400 });
+  const dataUrl = String(input.dataUrl || '');
+  const name = String(input.name || 'imagem').trim().normalize('NFC').slice(0, 120) || 'imagem';
+  const match = dataUrl.match(/^data:([^;,]+);base64,([A-Za-z0-9+/=\s]+)$/);
+  if (!match) throw Object.assign(new Error('Formato de imagem inválido.'), { status: 400 });
+  const [, mime, base64] = match;
+  if (!ALLOWED_IMAGE_MIME.has(mime)) {
+    throw Object.assign(new Error('Use PNG, JPEG, WEBP ou GIF.'), { status: 400 });
+  }
+  const size = estimateBase64Bytes(base64);
+  const limit = mime === 'image/gif' ? MAX_GIF_BYTES : MAX_IMAGE_BYTES;
+  if (size <= 0 || size > limit) {
+    throw Object.assign(new Error(mime === 'image/gif' ? 'O GIF deve ter até 4 MB.' : 'A imagem deve ter até 2,5 MB.'), { status: 413 });
+  }
+  const bytes = Buffer.from(base64, 'base64');
+  if (bytes.length !== size || bytes.toString('base64') !== base64.replace(/\s+/g, '')) {
+    throw Object.assign(new Error('Arquivo com codificação inválida.'), { status: 400 });
+  }
+  const validSignature =
+    (mime === 'image/png' && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) ||
+    (mime === 'image/jpeg' && bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) ||
+    (mime === 'image/webp' && bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP') ||
+    (mime === 'image/gif' && ['GIF87a', 'GIF89a'].includes(bytes.toString('ascii', 0, 6)));
+  if (!validSignature) throw Object.assign(new Error('Os dados não correspondem ao formato da imagem.'), { status: 400 });
+  return { dataUrl, name, mime, size };
 }
 
 function json(res, code, data, extraHeaders = {}) {
@@ -111,7 +194,7 @@ async function readJson(req) {
   const chunks = [];
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 300_000) {
+    if (size > MAX_JSON_BYTES) {
       const error = new Error('Mensagem muito grande.'); error.status = 413; throw error;
     }
     chunks.push(chunk);
@@ -150,7 +233,7 @@ function hashToken(token) { return createHash('sha256').update(token).digest('he
 function currentUser(req) {
   const token = cookies(req).pegasus_session;
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
-  return db.prepare(`SELECT users.id, users.name, users.email
+  return db.prepare(`SELECT users.id, users.name, users.email, users.friend_code AS friendCode
     FROM sessions JOIN users ON users.id = sessions.user_id
     WHERE sessions.token_hash = ? AND sessions.expires_at > ?`)
     .get(hashToken(token), Date.now()) || null;
@@ -182,12 +265,16 @@ function canReadConversation(userId, id) {
     .get(id, userId, userId);
 }
 function toMessage(row) {
+  const message = unpackStoredMessage(row.encrypted_body);
   return {
     id: row.id,
     conversationId: row.conversation_id,
     senderId: row.sender_id,
-    ciphertext: decryptAtRest(row.encrypted_body),
+    kind: message.kind,
+    ...(message.kind === 'text' ? { ciphertext: message.ciphertext } : { image: message.image }),
+    preview: previewMessage(message),
     createdAt: row.created_at,
+    revision: row.revision,
   };
 }
 const streams = new Map();
@@ -201,6 +288,8 @@ const staticFiles = new Map([
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/cipher.js', ['cipher.js', 'text/javascript; charset=utf-8']],
+  ['/editor.js', ['editor.js', 'text/javascript; charset=utf-8']],
+  ['/pegasus-logo.svg', ['pegasus-logo.svg', 'image/svg+xml']],
   ['/favicon.svg', ['favicon.svg', 'image/svg+xml']],
 ]);
 
@@ -230,15 +319,16 @@ const server = http.createServer(async (req, res) => {
       }
       if (db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail)) return fail(res, 409, 'Este e-mail já está cadastrado.');
       const hashed = await makePasswordHash(password);
+      const friendCode = uniqueFriendCode();
       let created;
       try {
-        created = db.prepare('INSERT INTO users (name,email,password_hash,created_at) VALUES (?,?,?,?)')
-          .run(displayName, normalizedEmail, hashed, new Date().toISOString());
+        created = db.prepare('INSERT INTO users (name,email,password_hash,created_at,friend_code) VALUES (?,?,?,?,?)')
+          .run(displayName, normalizedEmail, hashed, new Date().toISOString(), friendCode);
       } catch (error) {
         if (error.code?.startsWith('ERR_SQLITE_CONSTRAINT')) return fail(res, 409, 'Este e-mail já está cadastrado.');
         throw error;
       }
-      return addSession(res, { id: Number(created.lastInsertRowid), name: displayName, email: normalizedEmail });
+      return addSession(res, { id: Number(created.lastInsertRowid), name: displayName, email: normalizedEmail, friendCode });
     }
     if (method === 'POST' && url.pathname === '/api/login') {
       if (limited(req)) return fail(res, 429, 'Muitas tentativas. Tente mais tarde.');
@@ -248,13 +338,11 @@ const server = http.createServer(async (req, res) => {
       if (!found || typeof password !== 'string' || !(await checkPassword(password, found.password_hash))) {
         return fail(res, 401, 'E-mail ou senha incorretos.');
       }
-      return addSession(res, { id: found.id, name: found.name, email: found.email });
+      return addSession(res, { id: found.id, name: found.name, email: found.email, friendCode: found.friend_code });
     }
     if (method === 'POST' && url.pathname === '/api/logout') {
       const token = cookies(req).pegasus_session;
-      if (token && /^[a-f0-9]{64}$/.test(token)) {
-        db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
-      }
+      if (token && /^[a-f0-9]{64}$/.test(token)) db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
       return json(res, 200, { ok: true }, { 'Set-Cookie': `${sessionCookie('')}; Max-Age=0` });
     }
     if (url.pathname.startsWith('/api/')) {
@@ -272,7 +360,6 @@ const server = http.createServer(async (req, res) => {
         const clients = streams.get(user.id) || new Set();
         clients.add(res); streams.set(user.id, clients);
         const timer = setInterval(() => {
-          // Uma sessão invalidada não deve continuar recebendo eventos.
           if (!currentUser(req)) { res.end(); return; }
           if (!res.destroyed) res.write(': keep-alive\n\n');
         }, 25000);
@@ -293,19 +380,33 @@ const server = http.createServer(async (req, res) => {
            )
            WHERE c.user_a = ? OR c.user_b = ?
            ORDER BY COALESCE(m.id, 0) DESC, c.id DESC`).all(user.id, user.id, user.id);
-        return json(res, 200, { conversations: rows.map(row => ({
-          id: row.id, createdAt: row.created_at,
-          partner: { id: row.partner_id, name: row.partner_name, email: row.partner_email },
-          lastMessage: row.message_id ? {
-            id: row.message_id, ciphertext: decryptAtRest(row.encrypted_body), createdAt: row.last_message_at,
-          } : null,
-        })) });
+        return json(res, 200, {
+          conversations: rows.map(row => {
+            const parsed = row.message_id ? unpackStoredMessage(row.encrypted_body) : null;
+            return {
+              id: row.id,
+              createdAt: row.created_at,
+              partner: { id: row.partner_id, name: row.partner_name, email: row.partner_email },
+              lastMessage: row.message_id ? {
+                id: row.message_id,
+                kind: parsed.kind,
+                ...(parsed.kind === 'text' ? { ciphertext: parsed.ciphertext } : {}),
+                preview: previewMessage(parsed),
+                createdAt: row.last_message_at,
+              } : null,
+            };
+          }),
+        });
       }
       if (method === 'POST' && url.pathname === '/api/conversations') {
-        const { email } = await readJson(req);
-        const partnerEmail = String(email || '').trim().toLowerCase();
-        const partner = db.prepare('SELECT id FROM users WHERE email = ?').get(partnerEmail);
-        if (!partner) return fail(res, 404, 'Não existe usuário com esse e-mail.');
+        const { email, friendCode } = await readJson(req);
+        const byCode = typeof friendCode === 'string' && friendCode.trim().length > 0;
+        const byEmail = typeof email === 'string' && email.trim().length > 0;
+        if (byCode === byEmail) return fail(res, 400, 'Informe um e-mail ou código Pegasus.');
+        const partner = byCode
+          ? db.prepare('SELECT id FROM users WHERE friend_code = ?').get(friendCode.trim().toUpperCase())
+          : db.prepare('SELECT id FROM users WHERE email = ?').get(email.trim().toLowerCase());
+        if (!partner) return fail(res, 404, 'Usuário não encontrado.');
         if (partner.id === user.id) return fail(res, 400, 'Você não pode conversar consigo mesmo.');
         const [a, b] = [user.id, partner.id].sort((x, y) => x - y);
         db.prepare('INSERT OR IGNORE INTO conversations (user_a,user_b,created_at) VALUES (?,?,?)')
@@ -320,23 +421,33 @@ const server = http.createServer(async (req, res) => {
         if (!canReadConversation(user.id, conversationId)) return fail(res, 404, 'Conversa não encontrada.');
         if (method === 'GET') {
           const rows = db.prepare(`SELECT * FROM (
-            SELECT id, conversation_id, sender_id, encrypted_body, created_at
+            SELECT id, conversation_id, sender_id, encrypted_body, created_at, revision
             FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 100
           ) ORDER BY id ASC`).all(conversationId);
           return json(res, 200, { messages: rows.map(toMessage) });
         }
         if (method === 'POST') {
-          const { ciphertext } = await readJson(req);
-          if (typeof ciphertext !== 'string' || Buffer.byteLength(ciphertext) > 240_000) return fail(res, 400, 'Mensagem inválida ou grande demais.');
-          let plaintext;
-          try {
-            plaintext = decodePegasus(ciphertext);
-            if (ciphertext !== encodePegasus(plaintext)) throw new Error('PG1 não canônico');
-          } catch { return fail(res, 400, 'Formato Pegasus inválido.'); }
-          if (!plaintext.trim() || [...plaintext].length > MAX_MESSAGE_LENGTH) {
-            return fail(res, 400, 'Digite uma mensagem de até 4.000 caracteres.');
+          const payload = await readJson(req);
+          const kind = payload.kind === 'image' ? 'image' : payload.kind === 'text' || payload.kind == null ? 'text' : null;
+          if (!kind) return fail(res, 400, 'Tipo de mensagem inválido.');
+          let message;
+          if (kind === 'image') {
+            const image = validateImagePayload(payload.image);
+            message = { kind: 'image', image };
+          } else {
+            const { ciphertext } = payload;
+            if (typeof ciphertext !== 'string' || Buffer.byteLength(ciphertext) > 240_000) return fail(res, 400, 'Mensagem inválida ou grande demais.');
+            let plaintext;
+            try {
+              plaintext = decodePegasus(ciphertext);
+              if (ciphertext !== encodePegasus(plaintext)) throw new Error('PG1 não canônico');
+            } catch { return fail(res, 400, 'Formato Pegasus inválido.'); }
+            if (!plaintext.trim() || [...plaintext].length > MAX_MESSAGE_LENGTH) {
+              return fail(res, 400, 'Digite uma mensagem de até 4.000 caracteres.');
+            }
+            message = { kind: 'text', ciphertext };
           }
-          const encrypted = encryptAtRest(ciphertext);
+          const encrypted = packStoredMessage(message);
           const createdAt = new Date().toISOString();
           const result = db.prepare(`INSERT INTO messages (conversation_id,sender_id,encrypted_body,created_at)
             VALUES (?,?,?,?)`).run(conversationId, user.id, encrypted, createdAt);
@@ -344,9 +455,48 @@ const server = http.createServer(async (req, res) => {
           broadcast(members.user_a, { conversationId });
           broadcast(members.user_b, { conversationId });
           return json(res, 201, {
-            message: { id: Number(result.lastInsertRowid), conversationId, senderId: user.id, ciphertext, createdAt },
+            message: {
+              id: Number(result.lastInsertRowid),
+              conversationId,
+              senderId: user.id,
+              kind: message.kind,
+              ...(message.kind === 'text' ? { ciphertext: message.ciphertext } : { image: message.image }),
+              preview: previewMessage(message),
+              createdAt,
+              revision: 0,
+            },
           });
         }
+      }
+      // Alterar/apagar somente as próprias mensagens. Sem marcador ou aviso no chat.
+      const ownMessageMatch = url.pathname.match(/^\/api\/conversations\/(\d+)\/messages\/(\d+)$/);
+      if (ownMessageMatch && ['PATCH', 'DELETE'].includes(method)) {
+        const conversationId = Number(ownMessageMatch[1]);
+        const messageId = Number(ownMessageMatch[2]);
+        if (!canReadConversation(user.id, conversationId)) return fail(res, 404, 'Conversa não encontrada.');
+        const original = db.prepare('SELECT * FROM messages WHERE id=? AND conversation_id=?').get(messageId, conversationId);
+        if (!original) return fail(res, 404, 'Mensagem não encontrada.');
+        if (original.sender_id !== user.id) return fail(res, 403, 'Só o autor pode alterar ou apagar esta mensagem.');
+        if (method === 'DELETE') {
+          db.prepare('DELETE FROM messages WHERE id=? AND conversation_id=?').run(messageId, conversationId);
+        } else {
+          const previous = unpackStoredMessage(original.encrypted_body);
+          if (previous.kind !== 'text') return fail(res, 400, 'Somente mensagens de texto podem ser editadas.');
+          const { ciphertext } = await readJson(req);
+          if (typeof ciphertext !== 'string' || Buffer.byteLength(ciphertext) > 240_000) return fail(res, 400, 'Mensagem inválida.');
+          let plain;
+          try {
+            plain = decodePegasus(ciphertext);
+            if (ciphertext !== encodePegasus(plain)) throw new Error('Código inválido');
+          } catch { return fail(res, 400, 'Formato Pegasus inválido.'); }
+          if (!plain.trim() || [...plain].length > MAX_MESSAGE_LENGTH) return fail(res, 400, 'A mensagem deve ter até 4.000 caracteres.');
+          db.prepare('UPDATE messages SET encrypted_body=?, revision=revision+1 WHERE id=? AND conversation_id=?')
+            .run(packStoredMessage({ kind: 'text', ciphertext }), messageId, conversationId);
+        }
+        const members = db.prepare('SELECT user_a,user_b FROM conversations WHERE id=?').get(conversationId);
+        broadcast(members.user_a, { conversationId });
+        broadcast(members.user_b, { conversationId });
+        return json(res, 200, { ok: true });
       }
       return fail(res, 404, 'Rota não encontrada.');
     }

@@ -1,7 +1,19 @@
 import { encodePegasus, decodePegasus } from './cipher.js';
+import { setupImageEditor } from './editor.js';
 
 const $ = selector => document.querySelector(selector);
-const state = { user: null, conversations: [], selectedId: null, messages: [], events: null, authMode: 'login', currentPartner: null };
+const state = {
+  user: null,
+  conversations: [],
+  selectedId: null,
+  messages: [],
+  events: null,
+  authMode: 'login',
+  currentPartner: null,
+  draftImage: null,
+  addMode: 'email',
+  editMessageId: null,
+};
 let toastTimer;
 let refreshing = false;
 let shouldRefreshAgain = false;
@@ -30,16 +42,26 @@ function text(tag, className, content) {
   return element;
 }
 function safeDecode(ciphertext) {
-  try { return decodePegasus(ciphertext); } catch { return 'Não foi possível interpretar esta mensagem.'; }
+  try { return decodePegasus(ciphertext); }
+  catch { return 'Não foi possível interpretar esta mensagem.'; }
+}
+function previewMessage(message) {
+  if (!message) return 'Diga olá! ✨';
+  if (message.preview) return message.preview;
+  if (message.kind === 'image') return `🖼️ ${message.image?.name || 'Imagem'}`;
+  return safeDecode(message.ciphertext).replace(/\s+/g, ' ');
 }
 async function api(url, options = {}) {
   let response;
   try {
     response = await fetch(url, {
-      credentials: 'same-origin', ...options,
+      credentials: 'same-origin',
+      ...options,
       headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
     });
-  } catch { throw new Error('Não foi possível conectar ao servidor Pegasus.'); }
+  } catch {
+    throw new Error('Não foi possível conectar ao servidor Pegasus.');
+  }
   const payload = await response.json();
   if (!response.ok) {
     if (response.status === 401 && state.user && !['/api/login', '/api/register'].includes(url)) signOut(false);
@@ -57,8 +79,8 @@ function setAuthMode(mode) {
   $('#nameGroup').hidden = !register;
   $('#nameInput').required = register;
   $('#passwordInput').autocomplete = register ? 'new-password' : 'current-password';
-  $('#authTitle').textContent = register ? 'Crie seu espaço.' : 'Entre no seu universo.';
-  $('#authSubtitle').textContent = register ? 'Comece uma nova história, uma mensagem de cada vez.' : 'Entre com sua conta para continuar suas conversas.';
+  $('#authTitle').textContent = register ? 'Crie seu céu particular.' : 'Entre no seu universo.';
+  $('#authSubtitle').textContent = register ? 'Comece uma nova história, com mensagens e imagens.' : 'Entre com sua conta para continuar suas conversas.';
   $('#authSubmit').firstElementChild.textContent = register ? 'Criar minha conta' : 'Entrar no Pegasus';
 }
 function enterApp(user) {
@@ -68,10 +90,10 @@ function enterApp(user) {
   $('#myName').textContent = user.name;
   $('#myEmail').textContent = user.email;
   $('#myAvatar').textContent = initials(user.name);
+  $('#myCode').textContent = user.friendCode || '······';
   if (state.events) state.events.close();
   state.events = new EventSource('/api/events');
   state.events.addEventListener('refresh', () => refreshAll());
-  state.events.addEventListener('error', () => { /* EventSource reconecta automaticamente */ });
   refreshAll();
 }
 function signOut(notify = true) {
@@ -81,11 +103,13 @@ function signOut(notify = true) {
   state.selectedId = null;
   state.messages = [];
   state.conversations = [];
+  state.draftImage = null;
   $('#chatView').hidden = true;
   $('#authView').hidden = false;
   $('#messageInput').value = '';
   $('#authForm').reset();
   $('#chatView').classList.remove('chat-open');
+  clearDraftImage(false);
   if (notify) showToast('Você saiu do Pegasus.');
 }
 async function refreshAll() {
@@ -117,7 +141,8 @@ function renderConversations() {
   }
   for (const conversation of conversations) {
     const item = document.createElement('button');
-    item.type = 'button'; item.className = 'conversation-item';
+    item.type = 'button';
+    item.className = 'conversation-item';
     item.classList.toggle('selected', conversation.id === state.selectedId);
     item.addEventListener('click', () => selectConversation(conversation.id));
     item.append(text('div', 'contact-avatar', initials(conversation.partner.name)));
@@ -126,8 +151,7 @@ function renderConversations() {
     nameLine.append(text('strong', '', conversation.partner.name));
     nameLine.append(text('time', '', conversation.lastMessage ? readableTime(conversation.lastMessage.createdAt) : ''));
     content.append(nameLine);
-    const last = conversation.lastMessage ? safeDecode(conversation.lastMessage.ciphertext).replace(/\s+/g, ' ') : 'Diga olá! ✨';
-    content.append(text('span', 'conversation-preview', last));
+    content.append(text('span', 'conversation-preview', previewMessage(conversation.lastMessage)));
     item.append(content);
     list.append(item);
   }
@@ -156,14 +180,14 @@ async function refreshMessages() {
   if (requested == null) return;
   const { messages } = await api(`/api/conversations/${requested}/messages`);
   if (state.selectedId !== requested) return;
-  const previousCount = state.messages.length;
-  const previousLast = state.messages.at(-1)?.id;
+  const previousSignature = state.messages.map(m => `${m.id}:${m.revision || 0}`).join('|');
   const scrollbox = $('#messageList');
   const isNearBottom = scrollbox.scrollHeight - scrollbox.scrollTop - scrollbox.clientHeight < 110;
   state.messages = messages;
-  if (previousCount === messages.length && previousLast === messages.at(-1)?.id) return;
+  const newSignature = messages.map(m => `${m.id}:${m.revision || 0}`).join('|');
+  if (previousSignature === newSignature) return;
   renderMessages();
-  if (isNearBottom || previousCount === 0) requestAnimationFrame(() => { scrollbox.scrollTop = scrollbox.scrollHeight; });
+  if (isNearBottom || !previousSignature) requestAnimationFrame(() => { scrollbox.scrollTop = scrollbox.scrollHeight; });
 }
 function renderMessages() {
   const list = $('#messageList');
@@ -172,41 +196,130 @@ function renderMessages() {
     const empty = text('div', 'messages-empty', '');
     empty.append(text('div', 'messages-empty-icon', '✧'));
     empty.append(text('h3', '', 'Uma conversa só de vocês.'));
-    empty.append(text('p', '', 'Envie a primeira mensagem para começar a história.'));
+    empty.append(text('p', '', 'Envie a primeira mensagem ou compartilhe uma imagem para começar a história.'));
     list.append(empty);
     return;
   }
   let previousDate = '';
   for (const message of state.messages) {
     const date = readableDay(message.createdAt);
-    if (date !== previousDate) { list.append(text('div', 'date-divider', date)); previousDate = date; }
+    if (date !== previousDate) {
+      list.append(text('div', 'date-divider', date));
+      previousDate = date;
+    }
     const mine = message.senderId === state.user.id;
     const wrapper = text('div', `message-row ${mine ? 'mine' : 'theirs'}`, '');
-    const bubble = text('div', 'message-bubble', '');
-    bubble.append(text('p', 'message-body', safeDecode(message.ciphertext)));
+    const bubble = text('div', `message-bubble ${message.kind === 'image' ? 'image-bubble' : ''}`, '');
+
+    if (message.kind === 'image') {
+      const figure = text('figure', 'message-media', '');
+      const img = document.createElement('img');
+      img.className = 'message-image';
+      img.src = message.image.dataUrl;
+      img.alt = message.image?.mime === 'image/gif' ? 'GIF animado na conversa' : 'Imagem enviada na conversa';
+      img.loading = 'lazy';
+      figure.append(img);
+      bubble.append(figure);
+    } else {
+      bubble.append(text('p', 'message-body', safeDecode(message.ciphertext)));
+    }
+
     const details = text('div', 'message-details', '');
     details.append(text('time', '', readableTime(message.createdAt)));
-    const toggle = document.createElement('button');
-    toggle.type = 'button'; toggle.className = 'cipher-toggle';
-    toggle.textContent = 'Ver código PG1';
-    toggle.setAttribute('aria-label', 'Mostrar ou ocultar código Pegasus da mensagem');
-    const code = text('pre', 'cipher-output', message.ciphertext);
-    code.hidden = true;
-    toggle.addEventListener('click', () => {
-      code.hidden = !code.hidden;
-      toggle.textContent = code.hidden ? 'Ver código PG1' : 'Ocultar código';
-    });
-    details.append(toggle);
-    bubble.append(details, code);
+    if (message.kind === 'text') {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'cipher-toggle';
+      toggle.textContent = 'Ver código PG1';
+      toggle.setAttribute('aria-label', 'Mostrar ou ocultar código Pegasus da mensagem');
+      const code = text('pre', 'cipher-output', message.ciphertext);
+      code.hidden = true;
+      toggle.addEventListener('click', () => {
+        code.hidden = !code.hidden;
+        toggle.textContent = code.hidden ? 'Ver código PG1' : 'Ocultar código';
+      });
+      details.append(toggle);
+      bubble.append(details, code);
+    } else {
+      bubble.append(details);
+    }
+
+    if (mine) {
+      const menu = document.createElement('details');
+      menu.className = 'message-options';
+      const trigger = document.createElement('summary');
+      trigger.textContent = '⋯';
+      trigger.title = 'Opções da mensagem';
+      trigger.setAttribute('aria-label', 'Opções da mensagem');
+      const options = text('div', 'message-options-panel', '');
+      if (message.kind === 'text') {
+        const edit = text('button', '', '✎ Editar');
+        edit.type = 'button';
+        edit.addEventListener('click', () => {
+          menu.open = false;
+          state.editMessageId = message.id;
+          $('#editMessageInput').value = safeDecode(message.ciphertext);
+          $('#editMessageDialog').showModal();
+          $('#editMessageInput').focus();
+        });
+        options.append(edit);
+      }
+      const erase = text('button', 'delete-option', '⌫ Apagar');
+      erase.type = 'button';
+      erase.addEventListener('click', async () => {
+        menu.open = false;
+        if (!window.confirm('Apagar esta mensagem para as duas pessoas? Não haverá aviso no chat.')) return;
+        try {
+          await api(`/api/conversations/${message.conversationId}/messages/${message.id}`, { method: 'DELETE' });
+          await refreshAll();
+        } catch (error) { showToast(error.message, true); }
+      });
+      options.append(erase);
+      menu.append(trigger, options);
+      bubble.append(menu);
+    }
     wrapper.append(bubble);
     list.append(wrapper);
   }
 }
+function setAddMode(next) {
+  state.addMode = next;
+  const byCode = next === 'code';
+  $('#modeEmail').classList.toggle('active', !byCode);
+  $('#modeCode').classList.toggle('active', byCode);
+  $('#contactEmailGroup').hidden = byCode;
+  $('#contactCodeGroup').hidden = !byCode;
+  $('#contactEmail').required = !byCode;
+  $('#contactCode').required = byCode;
+}
 function openNewChat() {
+  setAddMode('email');
   const dialog = $('#newChatDialog');
   $('#newChatForm').reset();
   dialog.showModal();
   $('#contactEmail').focus();
+}
+function clearDraftImage(resetInput = true) {
+  state.draftImage = null;
+  $('#composerMedia').hidden = true;
+  $('#selectedImagePreview').src = '';
+  $('#selectedImageName').textContent = '';
+  if (resetInput) $('#imageInput').value = '';
+}
+function renderDraftImage() {
+  const draft = state.draftImage;
+  if (!draft) return clearDraftImage(false);
+  $('#composerMedia').hidden = false;
+  $('#selectedImagePreview').src = draft.dataUrl;
+  $('#selectedImageName').textContent = `${draft.name} · ${Math.max(1, Math.round(draft.size / 1024))} KB`;
+}
+async function fileToDataUrl(file) {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('Não foi possível ler a imagem selecionada.'));
+    reader.readAsDataURL(file);
+  });
 }
 
 $('#loginTab').addEventListener('click', () => setAuthMode('login'));
@@ -225,8 +338,11 @@ $('#authForm').addEventListener('submit', async event => {
     const { user } = await api(`/api/${route}`, { method: 'POST', body: JSON.stringify(body) });
     enterApp(user);
     showToast(route === 'register' ? 'Sua conta Pegasus foi criada!' : 'Bem-vindo de volta!');
-  } catch (error) { showToast(error.message, true); }
-  finally { button.disabled = false; }
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
 });
 $('#logoutButton').addEventListener('click', async () => {
   try { await api('/api/logout', { method: 'POST', body: '{}' }); }
@@ -235,6 +351,14 @@ $('#logoutButton').addEventListener('click', async () => {
 });
 $('#searchInput').addEventListener('input', renderConversations);
 $('#newChatButton').addEventListener('click', openNewChat);
+$('#modeEmail').addEventListener('click', () => setAddMode('email'));
+$('#modeCode').addEventListener('click', () => setAddMode('code'));
+$('#contactCode').addEventListener('input', event => { event.target.value = event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6); });
+$('#copyCodeButton').addEventListener('click', async () => {
+  if (!state.user?.friendCode) return;
+  try { await navigator.clipboard.writeText(state.user.friendCode); showToast('Código Pegasus copiado!'); }
+  catch { showToast(`Seu código: ${state.user.friendCode}`); }
+});
 $('#welcomeNewChat').addEventListener('click', openNewChat);
 $('#closeDialog').addEventListener('click', () => $('#newChatDialog').close());
 $('#newChatDialog').addEventListener('click', event => {
@@ -242,38 +366,87 @@ $('#newChatDialog').addEventListener('click', event => {
 });
 $('#newChatForm').addEventListener('submit', async event => {
   event.preventDefault();
-  const email = $('#contactEmail').value.trim();
-  const button = $('#createChatSubmit'); button.disabled = true;
+  const payload = state.addMode === 'code'
+    ? { friendCode: $('#contactCode').value.trim().toUpperCase() }
+    : { email: $('#contactEmail').value.trim() };
+  const button = $('#createChatSubmit');
+  button.disabled = true;
   try {
-    const { conversationId } = await api('/api/conversations', {
-      method: 'POST', body: JSON.stringify({ email }),
-    });
+    const { conversationId } = await api('/api/conversations', { method: 'POST', body: JSON.stringify(payload) });
     $('#newChatDialog').close();
     await refreshAll();
     await selectConversation(conversationId);
     showToast('Conversa pronta!');
-  } catch (error) { showToast(error.message, true); }
-  finally { button.disabled = false; }
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
 });
+const editor = setupImageEditor({
+  onApply(image) { state.draftImage = image; renderDraftImage(); },
+  onError(message) { showToast(message, true); },
+});
+$('#attachImageButton').addEventListener('click', () => $('#imageInput').click());
+$('#attachGifButton').addEventListener('click', () => $('#gifInput').click());
+for (const id of ['imageInput', 'gifInput']) {
+  $( '#' + id ).addEventListener('change', async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    await editor.open(file);
+    event.target.value = '';
+  });
+}
+$('#removeImageButton').addEventListener('click', () => clearDraftImage());
 $('#messageForm').addEventListener('submit', async event => {
   event.preventDefault();
   if (!state.selectedId || !state.user) return;
   const input = $('#messageInput');
   const originalText = input.value;
-  if (!originalText.trim()) return;
-  const button = $('#sendButton'); button.disabled = true;
-  const conversationId = state.selectedId;
+  const draftImage = state.draftImage;
+  if (!originalText.trim() && !draftImage) return;
+  const button = $('#sendButton');
+  button.disabled = true;
   try {
-    const ciphertext = encodePegasus(originalText);
-    await api(`/api/conversations/${conversationId}/messages`, {
-      method: 'POST', body: JSON.stringify({ ciphertext }),
-    });
-    if (input.value === originalText) input.value = '';
-    input.style.height = 'auto';
+    if (draftImage) {
+      await api(`/api/conversations/${state.selectedId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ kind: 'image', image: { dataUrl: draftImage.dataUrl, name: draftImage.name } }),
+      });
+      clearDraftImage();
+    }
+    if (originalText.trim()) {
+      const ciphertext = encodePegasus(originalText);
+      await api(`/api/conversations/${state.selectedId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ kind: 'text', ciphertext }),
+      });
+      if (input.value === originalText) input.value = '';
+      input.style.height = 'auto';
+    }
     await refreshAll();
     $('#messageList').scrollTop = $('#messageList').scrollHeight;
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+    input.focus();
+  }
+});
+$('#editMessageCancel').addEventListener('click', () => $('#editMessageDialog').close());
+$('#editMessageForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const id = state.editMessageId;
+  const value = $('#editMessageInput').value;
+  if (!id || !state.selectedId || !value.trim()) return;
+  try {
+    await api(`/api/conversations/${state.selectedId}/messages/${id}`, {
+      method: 'PATCH', body: JSON.stringify({ ciphertext: encodePegasus(value) }),
+    });
+    $('#editMessageDialog').close();
+    state.editMessageId = null;
+    await refreshAll();
   } catch (error) { showToast(error.message, true); }
-  finally { button.disabled = false; input.focus(); }
 });
 $('#messageInput').addEventListener('keydown', event => {
   if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {

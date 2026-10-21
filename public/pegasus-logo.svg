@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240" fill="none" role="img" aria-labelledby="t">
+<title id="t">Pegasus de perfil — cavalo alado</title>
+<defs>
+  <linearGradient id="coat" x1="80" y1="46" x2="263" y2="202" gradientUnits="userSpaceOnUse"><stop stop-color="#F4FAFF"/><stop offset=".58" stop-color="#B6E1FF"/><stop offset="1" stop-color="#65AFFF"/></linearGradient>
+  <linearGradient id="feather" x1="86" y1="32" x2="169" y2="140" gradientUnits="userSpaceOnUse"><stop stop-color="#ECF9FF"/><stop offset="1" stop-color="#449DE7"/></linearGradient>
+</defs>
+<!-- cauda ao vento -->
+<path d="M107 119C84 99 68 112 48 91c6 21 15 26 31 33-23-5-36 3-54-12 8 21 30 35 62 32l27-8" fill="#92CEFF" stroke="#CBEAFF" stroke-width="2" stroke-linejoin="round"/>
+<!-- pernas traseiras -->
+<path d="M122 153c-20 21-25 34-25 46l-22 9 22 3c14 0 20-8 20-18l25-28" stroke="url(#coat)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M143 153c-8 27-4 43 6 51l-4 17 15-7c11-8 7-19 1-28l5-22" stroke="#81BFFE" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+<!-- corpo -->
+<path d="M98 126c1-24 25-41 57-39 25 1 44 12 53 35 7 18-2 40-20 49-20 10-58 7-76-4-10-7-16-23-14-41Z" fill="url(#coat)" stroke="#DFF5FF" stroke-width="3"/>
+<!-- pata dianteira estendida -->
+<path d="M193 146c16 8 23 26 25 42l27 5 13 17-22-6-23-2c-12-4-20-20-32-30" fill="url(#coat)" stroke="#D8EFFF" stroke-width="3" stroke-linejoin="round"/>
+<!-- outra pata anterior recolhida -->
+<path d="M185 161c2 22-3 31-11 44l4 16-14-3c-10-9-9-18-3-28l3-29" fill="#87C8FF" stroke="#D8EFFF" stroke-width="3" stroke-linejoin="round"/>
+<!-- pescoço curvado -->
+<path d="M188 139c8-28 22-48 37-67 4-8 12-16 22-19l14 18c-15 6-19 13-25 29-5 19-6 35-14 52-8 13-19 19-34 20" fill="url(#coat)" stroke="#E9F9FF" stroke-width="3" stroke-linejoin="round"/>
+<!-- orelha pontuda, crina e cabeça com focinho para a direita -->
+<path d="M231 64 232 38 246 54 255 37l5 22c12 7 21 20 31 22l11 11-1 9-13 8-22-7-18-2-15 8c-11-4-15-18-11-28Z" fill="url(#coat)" stroke="#E9F9FF" stroke-width="3" stroke-linejoin="round"/>
+<path d="M240 62c-17-5-25-2-35-9 2 13 10 19 19 22-14-1-20 0-29-6 5 16 16 22 31 25" fill="#5DABF1" stroke="#A8E1FF" stroke-width="2"/>
+<circle cx="274" cy="84" r="3.2" fill="#092440"/><circle cx="275" cy="83" r="1" fill="#fff"/>
+<path d="M291 98 299 98" stroke="#326DA0" stroke-width="2.5" stroke-linecap="round"/>
+<!-- grande asa levantada acima do corpo: penas separadas -->
+<path d="M151 113C112 99 83 60 62 11c25 22 44 31 59 34C103 27 98 12 92 3c27 24 43 34 58 39-8-16-14-29-14-39 19 24 25 38 33 52 8 17 12 32 5 53" fill="url(#feather)" stroke="#D9F3FF" stroke-width="3" stroke-linejoin="round"/>
+<path d="M153 113C117 92 94 67 79 31M159 107C129 86 115 63 104 29M166 101C145 73 144 48 141 27" stroke="#DFF5FF" stroke-opacity=".75" stroke-width="3" stroke-linecap="round"/>
+<path d="M148 116c-21-9-34-13-50-16 16 15 33 26 50 29l23-13" fill="#4B9ADE" stroke="#C5E9FF" stroke-width="2"/>
+</svg>
