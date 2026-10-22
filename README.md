@@ -1,8 +1,18 @@
-# Pegasus — Mensageiro (v0.8)
+# Pegasus — Mensageiro (v0.9)
 
 **Pegasus** é um protótipo de mensageiro em tempo real com interface Liquid Glass, identidade visual azul inspirada em uma galáxia e a constelação de Pegasus.
 
 > **Status:** protótipo local para desenvolvimento. Ainda não é recomendado para uso público e não possui criptografia de ponta a ponta. PG1 é uma transformação matemática personalizada, não criptografia moderna.
+
+## Novidades da v0.9
+
+- **Busca global de mensagens:** procure palavras/frases em conversas acessíveis e salte para o resultado.
+- **Mensagens fixadas:** fixe/desafixe pelo menu contextual e abra a lista pelo ícone de marcador no cabeçalho.
+- **Reações com emojis:** 👍 ❤️ 😂 😮 😢 🔥 👏 🙏; uma reação ativa por usuário em cada mensagem, que pode ser alterada/removida.
+- **Conversas arquivadas:** arquive/desarquive nos detalhes do contato e alterne a lista pelo botão de arquivo. O arquivamento é local.
+- **Confirmações de leitura:** mensagens recebidas marcam-se como lidas quando a conversa é aberta; o remetente vê “Lida”.
+- **Mensagens temporárias:** escolha 1 hora, 24 horas ou 7 dias para mensagens novas enviadas por você, ou desative. Mensagens vencidas são removidas do banco ao consultar conversas/histórico.
+- **Migrações aditivas:** novas tabelas/colunas para reações, fixadas, arquivamento, leitura e expiração são criadas sem apagar o histórico existente.
 
 ## Novidades da v0.8
 
@@ -56,6 +66,19 @@ Clique no nome ou na foto do cabeçalho da conversa para abrir os detalhes. O pa
 
 Quando um contato é bloqueado por qualquer uma das partes, o envio de novas mensagens é impedido até o desbloqueio.
 
+### Busca, fixadas e reações
+
+- Use o ícone de busca no cabeçalho para procurar mensagens por palavra ou frase. A busca considera até 300 mensagens recentes por execução e retorna até 50 resultados.
+- No menu contextual da mensagem, escolha **Fixar mensagem** ou **Desafixar mensagem**. Use o ícone de marcador do cabeçalho para listar as mensagens fixadas.
+- No menu contextual, escolha **Reagir…** e informe um dos emojis permitidos; ou clique numa reação existente para adicioná-la/removê-la.
+- O botão de arquivo na lista alterna entre conversas comuns e arquivadas. Arquivar não apaga o histórico.
+
+### Mensagens temporárias e leitura
+
+- Em detalhes do contato, escolha o prazo para as **mensagens que você enviar dali em diante**. Isso é por remetente: para que as mensagens enviadas pelos dois lados expirem, cada pessoa deve configurar a própria preferência.
+- O prazo começa no envio. O servidor remove mensagens vencidas quando o histórico ou a lista de conversas é consultado; não existe tarefa de limpeza em segundo plano.
+- Abrir uma conversa marca mensagens recebidas como lidas. O indicador não é um recibo criptograficamente assinado e não equivale a entrega push em dispositivos offline.
+
 ### Tema claro/escuro
 
 O Pegasus abre no tema escuro. Use o botão de sol/lua na parte inferior da barra lateral para alternar. A preferência é salva localmente neste navegador.
@@ -68,6 +91,25 @@ O Pegasus abre no tema escuro. Use o botão de sol/lua na parte inferior da barr
 4. Pressione **Parar e enviar** para enviar automaticamente, ou **Cancelar gravação** para descartar.
 
 A gravação usa `MediaRecorder`, funciona em `localhost` durante o desenvolvimento ou em HTTPS quando hospedado. Não há mais pré-escuta antes do envio.
+
+## Limitações importantes
+
+- Ainda é um protótipo 1:1; não há grupos, chamadas de áudio/vídeo reais, sincronização multi-dispositivo, notificações push nativas ou criptografia ponta a ponta.
+- A busca varre uma janela limitada de mensagens recentes, não um índice completo.
+- Mensagens temporárias são apagadas quando o servidor processa consultas, não por um cronômetro de limpeza em segundo plano; cópias/prints externos não podem ser controlados.
+- Confirmações de leitura são simples estados no SQLite.
+- PG1 é transformação matemática personalizada, não criptografia moderna; AES-256-GCM protege dados armazenados no servidor, mas o servidor consegue descriptografá-los.
+
+## Próximas funções recomendadas
+
+1. **Backup e exportação de conversas** com arquivo protegido por senha e opções claras de inclusão de mídia.
+2. **Rascunhos por conversa** e mensagens agendadas.
+3. **Pastas de conversas personalizadas** (trabalho, faculdade, amigos), filtros de não lidas e silenciadas.
+4. **Transcrição de áudio local/opcional**, com consentimento explícito.
+5. **Chamadas WebRTC** com sinalização, permissões, estados de conexão e tratamento de rede.
+6. **Criptografia ponta a ponta real**, com protocolo revisado, gestão/verificação de chaves e testes de segurança; não inventar um algoritmo próprio.
+7. **Proteção de tela e bloqueio local** por PIN/biometria do dispositivo quando a plataforma permitir.
+8. **Indicador de digitação e presença** com controles de privacidade.
 
 ## Stack
 
@@ -108,33 +150,23 @@ npm test
 
 1. Pare o servidor.
 2. Faça backup de `data/`, especialmente `pegasus.sqlite` e `local-secret.key`.
-3. Substitua os arquivos do programa pelos da v0.8, mas mantenha a pasta `data/`.
+3. Substitua os arquivos do programa pelos da v0.9, mas mantenha a pasta `data/`.
 4. Execute `npm start`; a migração cria as novas tabelas/colunas sem apagar as mensagens antigas.
 5. Se a interface estiver desatualizada, force a atualização com `Ctrl + F5`.
 
 Não apague `local-secret.key`, pois ela é necessária para ler os dados cifrados que já estão armazenados localmente. Em produção, configure `PEGASUS_MESSAGE_KEY` com uma chave persistente e mantenha-a em segredo.
 
-## Próximas funções recomendadas
-
-- mensagens fixadas no topo da conversa;
-- busca por texto, remetente, data e tipo de mídia;
-- reações com emojis;
-- pastas e arquivamento de conversas;
-- estados de envio/entrega/leitura;
-- mensagens temporárias configuráveis;
-- chamadas de áudio/vídeo e criptografia de ponta a ponta real em etapas próprias, com revisão de segurança.
-
 ## Commit sugerido
 
 ```bash
 git add .
-git commit -m "feat: adiciona respostas, favoritos, encaminhamento e gestão de contatos"
+git commit -m "feat: adiciona busca, reações, mensagens fixadas e temporárias"
 git push origin main
 ```
 
 Tag opcional:
 
 ```bash
-git tag -a v0.8.0 -m "Pegasus v0.8.0 - Gestão avançada de mensagens e contatos"
+git tag -a v0.9.0 -m "Pegasus v0.9.0 - Busca, reações e organização"
 git push origin v0.8.0
 ```

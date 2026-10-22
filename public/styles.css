@@ -671,3 +671,17 @@ html[data-theme="light"] .message-row.jump-highlight .message-bubble { outline-c
 .inbox-heading > div { flex:1; min-width:0; }
 .inbox-heading .request-button { margin-left:0; margin-right:0; flex:0 0 38px; min-width:38px; }
 .inbox-heading .add-button { flex:0 0 40px; }
+
+/* Pegasus v0.9: organização, busca, reações e mensagens fixadas */
+.header-tool-button{border:1px solid var(--line,rgba(160,190,255,.18));background:rgba(120,155,220,.08);color:var(--text,#edf3ff);width:38px;height:38px;border-radius:12px;font-size:1.35rem;cursor:pointer;display:grid;place-items:center;transition:background .18s,border-color .18s}
+.header-tool-button:hover,.request-button.active{background:rgba(109,148,255,.2);border-color:rgba(140,175,255,.45)}
+.conversation-archived-mark{font-size:.75rem;color:var(--muted,#a8b6d4)}
+.message-read-status{font-size:.68rem;letter-spacing:-.04em;color:var(--muted,#a8b6d4);white-space:nowrap}
+.message-reactions{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.reaction-chip{border:1px solid var(--line,rgba(160,190,255,.2));border-radius:999px;padding:3px 8px;background:rgba(120,155,220,.1);color:var(--text,#edf3ff);font-size:.78rem;cursor:pointer}
+.reaction-chip.mine{border-color:rgba(130,165,255,.8);background:rgba(102,138,255,.22)}
+.search-message-form{display:flex;gap:9px;margin:14px 0}
+.search-message-form input{min-width:0;flex:1}
+#disappearingSeconds{width:100%;padding:12px 14px;border:1px solid var(--line,rgba(160,190,255,.2));border-radius:12px;background:var(--panel,rgba(12,25,51,.7));color:var(--text,#edf3ff);font:inherit}
+#archiveContactButton{width:100%;margin:4px 0 12px}
+@media(max-width:720px){.header-action{gap:5px}.header-tool-button{width:34px;height:34px}.secure-badge{display:none}.message-read-status{font-size:.62rem}}

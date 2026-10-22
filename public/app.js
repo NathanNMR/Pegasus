@@ -23,6 +23,7 @@ const state = {
   replyToMessageId: null,
   forwardMessageIds: [],
   theme: 'dark',
+  showArchived: false,
 };
 let toastTimer;
 let refreshing = false;
@@ -208,11 +209,11 @@ function renderConversations() {
   const query = $('#searchInput').value.trim().toLocaleLowerCase('pt-BR');
   const list = $('#conversationList');
   list.replaceChildren();
-  const conversations = state.conversations.filter(c => !query ||
-    c.partner.name.toLocaleLowerCase('pt-BR').includes(query) || c.partner.realName?.toLocaleLowerCase('pt-BR').includes(query) || c.partner.email.toLocaleLowerCase('pt-BR').includes(query));
+  const conversations = state.conversations.filter(c => !!c.archived===state.showArchived && (!query ||
+    c.partner.name.toLocaleLowerCase('pt-BR').includes(query) || c.partner.realName?.toLocaleLowerCase('pt-BR').includes(query) || c.partner.email.toLocaleLowerCase('pt-BR').includes(query)));
   $('#chatCount').textContent = String(state.conversations.length).padStart(2, '0');
   if (!conversations.length) {
-    list.append(text('p', 'sidebar-placeholder', query ? 'Nenhuma conversa encontrada.' : 'Nenhuma conversa ainda. Use o botão + para começar.'));
+    list.append(text('p', 'sidebar-placeholder', query ? 'Nenhuma conversa encontrada.' : state.showArchived ? 'Nenhuma conversa arquivada.' : 'Nenhuma conversa ainda. Use o botão + para começar.'));
     return;
   }
   for (const conversation of conversations) {
@@ -227,6 +228,7 @@ function renderConversations() {
     const content = text('div', 'conversation-text', '');
     const nameLine = text('div', 'conversation-name-row', '');
     nameLine.append(text('strong', '', conversation.partner.name));
+    if(conversation.archived)nameLine.append(text('span','conversation-archived-mark','▣'));
     nameLine.append(text('time', '', conversation.lastMessage ? readableTime(conversation.lastMessage.createdAt) : ''));
     content.append(nameLine);
     content.append(text('span', 'conversation-preview', previewMessage(conversation.lastMessage)));
@@ -264,11 +266,11 @@ async function refreshMessages(aroundId = null) {
   if (requested == null) return;
   const { messages } = await api(`/api/conversations/${requested}/messages${aroundId ? `?around=${encodeURIComponent(aroundId)}` : ''}`);
   if (state.selectedId !== requested) return;
-  const previousSignature = state.messages.map(m => `${m.id}:${m.revision || 0}:${m.isFavorite?1:0}:${m.replyTo?.id||0}:${m.replyTo?.preview||''}:${m.forwarded?1:0}`).join('|');
+  const previousSignature = state.messages.map(m => `${m.id}:${m.revision || 0}:${m.isFavorite?1:0}:${m.replyTo?.id||0}:${m.replyTo?.preview||''}:${m.forwarded?1:0}:${m.isPinned?1:0}:${m.readAt||''}:${(m.reactions||[]).map(r=>r.emoji+r.count+r.mine).join(',')}:${m.expiresAt||''}`).join('|');
   const scrollbox = $('#messageList');
   const isNearBottom = scrollbox.scrollHeight - scrollbox.scrollTop - scrollbox.clientHeight < 110;
   state.messages = messages;
-  const newSignature = messages.map(m => `${m.id}:${m.revision || 0}:${m.isFavorite?1:0}:${m.replyTo?.id||0}:${m.replyTo?.preview||''}:${m.forwarded?1:0}`).join('|');
+  const newSignature = messages.map(m => `${m.id}:${m.revision || 0}:${m.isFavorite?1:0}:${m.replyTo?.id||0}:${m.replyTo?.preview||''}:${m.forwarded?1:0}:${m.isPinned?1:0}:${m.readAt||''}:${(m.reactions||[]).map(r=>r.emoji+r.count+r.mine).join(',')}:${m.expiresAt||''}`).join('|');
   if (previousSignature === newSignature) return;
   renderMessages();
   if (isNearBottom || !previousSignature) requestAnimationFrame(() => { scrollbox.scrollTop = scrollbox.scrollHeight; });
@@ -394,6 +396,8 @@ function showMessageContextMenu(message, x, y) {
     menu.append(button);
   }
   option('↩ Responder', () => setReplyTo(message));
+  option(message.isPinned ? '⌖ Desafixar mensagem' : '⌖ Fixar mensagem', async () => { await api(`/api/conversations/${message.conversationId}/messages/${message.id}/pin`,{method:'POST',body:JSON.stringify({pinned:!message.isPinned})}); await refreshMessages(); showToast(message.isPinned?'Mensagem desafixada.':'Mensagem fixada.'); });
+  option('☺ Reagir…', async () => { const choice=window.prompt('Escolha uma reação: 👍 ❤️ 😂 😮 😢 🔥 👏 🙏\nDeixe em branco para remover sua reação.','👍'); if(choice===null)return; const emoji=choice.trim(); await api(`/api/conversations/${message.conversationId}/messages/${message.id}/reaction`,{method:'POST',body:JSON.stringify({emoji})}); await refreshMessages(); });
   option(message.isFavorite ? '★ Remover dos favoritos' : '☆ Adicionar aos favoritos', () => favoriteMessage(message,!message.isFavorite));
   option('➦ Encaminhar', () => openForwardDialog([message.id]));
   option('☷ Selecionar mensagem', () => startSelection(message.id));
@@ -477,6 +481,7 @@ function renderMessages() {
     wrapper.id=`message-${message.id}`;
     wrapper.classList.toggle('selected',state.selectedMessageIds.has(message.id));
     const bubble = text('div', `message-bubble ${message.kind === 'image' ? 'image-bubble' : ''}`, '');
+    if (message.isPinned) bubble.append(text('span','message-forwarded-tag','⌖ Fixada'));
     if (message.forwarded) bubble.append(text('span','message-forwarded-tag','↗ Encaminhada'));
     if (message.replyTo) {
       const quote=text('button','reply-quote','');quote.type='button';
@@ -536,9 +541,15 @@ function renderMessages() {
 
     const details = text('div', 'message-details', '');
     details.append(text('time', '', readableTime(message.createdAt)));
+    if(mine) details.append(text('span','message-read-status',message.readAt?'✓✓ Lida':'✓ Enviada'));
     if (message.isFavorite) details.append(text('span','message-favorite-mark','★'));
     // Exibe apenas o conteúdo interpretado; a transformação matemática não é mostrada na conversa.
     bubble.append(details);
+    if(message.reactions?.length){
+      const reactionRow=text('div','message-reactions','');
+      for(const reaction of message.reactions){const chip=text('button','reaction-chip',`${reaction.emoji} ${reaction.count}`);chip.type='button';chip.classList.toggle('mine',reaction.mine);chip.title=reaction.mine?'Remover sua reação':'Reagir com '+reaction.emoji;chip.addEventListener('click',async event=>{event.stopPropagation();await api(`/api/conversations/${message.conversationId}/messages/${message.id}/reaction`,{method:'POST',body:JSON.stringify({emoji:reaction.mine?'':reaction.emoji})});await refreshMessages();});reactionRow.append(chip);}
+      bubble.append(reactionRow);
+    }
     bubble.tabIndex = 0;
     bubble.setAttribute('aria-label', mine ? 'Sua mensagem. Clique com o botão direito para opções.' : 'Mensagem recebida. Clique com o botão direito para opções.');
     bubble.addEventListener('contextmenu', event => {
@@ -1058,6 +1069,8 @@ function openContactDetails(){
   $('#contactDetailStarted').textContent=readableDay(conversation.createdAt);
   $('#contactAliasInput').value=partner.alias||'';
   $('#contactNotificationsEnabled').checked=conversation.notificationsEnabled!==false;
+  $('#disappearingSeconds').value=String(conversation.disappearingSeconds||0);
+  $('#archiveContactButton').textContent=conversation.archived?'Desarquivar conversa':'Arquivar conversa';
   setAvatar($('#contactDetailAvatar'),partner);
   applyConversationStatus();
   renderContactMedia();
@@ -1072,7 +1085,7 @@ $('#saveContactPreferences').addEventListener('click',async()=>{
   const notificationsEnabled=$('#contactNotificationsEnabled').checked;
   try{
     if(notificationsEnabled&&'Notification' in window&&Notification.permission==='default') await Notification.requestPermission();
-    await api(`/api/conversations/${conversation.id}/preferences`,{method:'PUT',body:JSON.stringify({alias:$('#contactAliasInput').value,notificationsEnabled})});
+    await api(`/api/conversations/${conversation.id}/preferences`,{method:'PUT',body:JSON.stringify({alias:$('#contactAliasInput').value,notificationsEnabled,disappearingSeconds:Number($('#disappearingSeconds').value)})});
     $('#contactDialog').close();await refreshAll();showToast('Preferências do contato salvas.');
   }catch(error){showToast(error.message,true);}
 });
@@ -1098,6 +1111,14 @@ $('#deleteContactButton').addEventListener('click',async()=>{
     $('#conversationView').hidden=true;$('#welcomeScreen').hidden=false;$('#chatView').classList.remove('chat-open');cancelSelection();clearReply();await refreshAll();showToast('Contato excluído da sua lista.');
   }catch(error){showToast(error.message,true);}
 });
+
+$('#archiveToggle').addEventListener('click',()=>{state.showArchived=!state.showArchived;$('#archiveToggle').classList.toggle('active',state.showArchived);$('#archiveToggle').title=state.showArchived?'Voltar às conversas':'Conversas arquivadas';renderConversations();});
+$('#archiveContactButton').addEventListener('click',async()=>{const conversation=state.currentConversation;if(!conversation)return;try{await api(`/api/conversations/${conversation.id}/preferences`,{method:'PUT',body:JSON.stringify({archived:!conversation.archived})});$('#contactDialog').close();await refreshAll();renderConversations();showToast(conversation.archived?'Conversa desarquivada.':'Conversa arquivada.');}catch(error){showToast(error.message,true);}});
+$('#searchMessagesButton').addEventListener('click',()=>{$('#searchMessagesDialog').showModal();$('#searchMessagesInput').focus();});
+$('#closeSearchMessages').addEventListener('click',()=>$('#searchMessagesDialog').close());
+$('#searchMessagesForm').addEventListener('submit',async event=>{event.preventDefault();const query=$('#searchMessagesInput').value.trim();if(query.length<2)return;const list=$('#searchMessagesResults');list.replaceChildren();list.append(text('p','empty-panel','Buscando…'));try{const {results}=await api(`/api/search?q=${encodeURIComponent(query)}`);list.replaceChildren();if(!results.length){list.append(text('p','empty-panel','Nenhuma mensagem encontrada.'));return;}for(const result of results){const button=text('button','favorite-item','');button.type='button';button.append(text('strong','',result.partner.name),text('span','',result.match),text('small','',`${readableDay(result.message.createdAt)} · ${readableTime(result.message.createdAt)}`));button.addEventListener('click',async()=>{$('#searchMessagesDialog').close();let convo=state.conversations.find(c=>c.id===result.conversationId);if(!convo){await refreshAll();convo=state.conversations.find(c=>c.id===result.conversationId);}if(convo){if(convo.archived){state.showArchived=true;renderConversations();}await selectConversation(convo.id);await jumpToMessage(result.message.id);}});list.append(button);}}catch(error){list.replaceChildren();list.append(text('p','empty-panel',error.message));}});
+$('#pinnedMessagesButton').addEventListener('click',async()=>{if(!state.selectedId)return;const list=$('#pinnedMessagesList');list.replaceChildren();try{const {messages}=await api(`/api/conversations/${state.selectedId}/pins`);if(!messages.length)list.append(text('p','empty-panel','Nenhuma mensagem fixada nesta conversa.'));for(const message of messages){const button=text('button','favorite-item','');button.type='button';button.append(text('strong','',message.senderId===state.user.id?'Você':state.currentPartner?.name||'Contato'),text('span','',messagePreview(message)),text('small','',`${readableDay(message.createdAt)} · ${readableTime(message.createdAt)}`));button.addEventListener('click',async()=>{$('#pinnedMessagesDialog').close();await jumpToMessage(message.id);});list.append(button);}$('#pinnedMessagesDialog').showModal();}catch(error){showToast(error.message,true);}});
+$('#closePinnedMessages').addEventListener('click',()=>$('#pinnedMessagesDialog').close());
 
 try { applyTheme(localStorage.getItem('pegasus-theme') || 'dark', false); } catch { applyTheme('dark', false); }
 (async function startup() {
