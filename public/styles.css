@@ -667,10 +667,24 @@ html[data-theme="light"] .voice-action-stop { color:#9b253e; }
 .message-row.jump-highlight .message-bubble { outline:2px solid #b8e6ff; box-shadow:0 0 0 7px rgba(112,194,255,.22),0 0 30px rgba(112,194,255,.35); transition:box-shadow .25s; }
 html[data-theme="light"] .message-row.jump-highlight .message-bubble { outline-color:#267bb8; box-shadow:0 0 0 7px rgba(58,148,211,.16),0 0 30px rgba(58,148,211,.25); }
 
-.inbox-heading { gap:6px; }
-.inbox-heading > div { flex:1; min-width:0; }
-.inbox-heading .request-button { margin-left:0; margin-right:0; flex:0 0 38px; min-width:38px; }
-.inbox-heading .add-button { flex:0 0 40px; }
+/* Cabeçalho "Mensagens": título numa linha, ações logo abaixo (sem sobreposição) */
+.inbox-heading { flex-wrap:wrap; align-items:center; gap:14px 8px; }
+.inbox-heading > div { flex:1 1 100%; min-width:0; }
+.inbox-heading h2 { white-space:nowrap; line-height:1.1; }
+.inbox-heading .request-button { margin-left:0; margin-right:0; flex:0 0 40px; min-width:40px; width:40px; height:40px; display:grid; place-items:center; padding:0; line-height:1; }
+.inbox-heading .request-button span:not([hidden]) { top:-7px; right:-6px; }
+.inbox-heading .add-button { flex:0 0 40px; margin-left:auto; }
+
+/* Cabeçalho do chat: contato ocupa o espaço livre, ações alinhadas à direita */
+.contact-header-button { flex:1 1 auto; min-width:0; }
+.header-action { display:flex; align-items:center; gap:8px; flex:0 0 auto; margin-left:auto; }
+.header-tool-button { flex:0 0 auto; line-height:1; padding:0; }
+.chat-header .secure-badge { flex:0 0 auto; }
+
+/* Rodapé da conta: espaçamento mais compacto para caber tudo em uma linha */
+.sidebar-bottom { gap:8px; padding:18px 16px 21px; }
+.sidebar-bottom .logout-button { flex:0 0 34px; }
+.account-details { flex:1 1 0; }
 
 /* Pegasus v0.9: organização, busca, reações e mensagens fixadas */
 .header-tool-button{border:1px solid var(--line,rgba(160,190,255,.18));background:rgba(120,155,220,.08);color:var(--text,#edf3ff);width:38px;height:38px;border-radius:12px;font-size:1.35rem;cursor:pointer;display:grid;place-items:center;transition:background .18s,border-color .18s}
