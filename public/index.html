@@ -188,6 +188,47 @@
   <dialog id="requestsDialog" class="mini-modal glass requests-dialog" aria-label="Solicitações de conversa">
     <div class="mini-modal-content"><header class="profile-heading"><div><span class="eyebrow">CONTATOS</span><h2>Solicitações</h2></div><button id="closeRequests" type="button" class="dialog-close-inline" aria-label="Fechar">×</button></header><p>Pessoas que querem iniciar uma conversa com você.</p><div id="requestsList" class="requests-list"></div><p id="requestsOutgoing" class="request-outgoing"></p></div>
   </dialog>
+  
+  <!-- Novos modais que substituem as caixas de alerta do navegador e trazem o menu de Reações -->
+  <dialog id="customConfirmDialog" class="mini-modal glass" aria-label="Confirmação do sistema">
+    <div class="mini-modal-content">
+      <header class="profile-heading">
+        <div>
+          <span class="eyebrow">AÇÃO NECESSÁRIA</span>
+          <h2 id="customConfirmTitle">Confirmação</h2>
+          <p id="customConfirmMessage">Você tem certeza?</p>
+        </div>
+      </header>
+      <div class="modal-footer" style="margin-top: 1.5rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
+        <button id="customConfirmCancel" type="button" class="soft-button">Cancelar</button>
+        <button id="customConfirmAccept" type="button" class="primary-button">Confirmar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="reactionDialog" class="mini-modal glass" aria-label="Reagir à mensagem">
+    <div class="mini-modal-content">
+      <header class="profile-heading">
+        <div>
+          <span class="eyebrow">INTERAÇÃO</span>
+          <h2>Reagir</h2>
+        </div>
+        <button id="closeReactionDialog" type="button" class="dialog-close-inline" aria-label="Fechar">×</button>
+      </header>
+      <div id="reactionGrid" class="filter-grid" style="margin: 1.5rem 0; font-size: 1.5rem;">
+        <button type="button" data-emoji="👍">👍</button>
+        <button type="button" data-emoji="❤️">❤️</button>
+        <button type="button" data-emoji="😂">😂</button>
+        <button type="button" data-emoji="😮">😮</button>
+        <button type="button" data-emoji="😢">😢</button>
+        <button type="button" data-emoji="🔥">🔥</button>
+        <button type="button" data-emoji="👏">👏</button>
+        <button type="button" data-emoji="🙏">🙏</button>
+      </div>
+      <button id="removeReactionButton" type="button" class="soft-button" style="width: 100%;">Remover reação</button>
+    </div>
+  </dialog>
+
   <div id="messageContextMenu" class="message-context-menu" role="menu" aria-label="Opções da mensagem" hidden></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 </body>

@@ -37,6 +37,49 @@ function showToast(message, isError = false) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { element.hidden = true; }, 4200);
 }
+
+// Lógica dos Novos Modais customizados para substituir window.confirm e window.prompt
+function customConfirm(title, message) {
+  return new Promise(resolve => {
+    const dialog = $('#customConfirmDialog');
+    $('#customConfirmTitle').textContent = title;
+    $('#customConfirmMessage').textContent = message;
+    const acceptBtn = $('#customConfirmAccept');
+    const cancelBtn = $('#customConfirmCancel');
+    
+    const cleanup = () => {
+      dialog.close();
+      acceptBtn.onclick = null;
+      cancelBtn.onclick = null;
+    };
+    
+    acceptBtn.onclick = () => { cleanup(); resolve(true); };
+    cancelBtn.onclick = () => { cleanup(); resolve(false); };
+    
+    dialog.showModal();
+  });
+}
+
+function customReact() {
+  return new Promise(resolve => {
+    const dialog = $('#reactionDialog');
+    const closeBtn = $('#closeReactionDialog');
+    const removeBtn = $('#removeReactionButton');
+    const grid = $('#reactionGrid');
+    
+    const cleanup = () => { dialog.close(); };
+    
+    closeBtn.onclick = () => { cleanup(); resolve(null); };
+    removeBtn.onclick = () => { cleanup(); resolve(''); };
+    
+    grid.querySelectorAll('button').forEach(btn => {
+      btn.onclick = () => { cleanup(); resolve(btn.dataset.emoji); };
+    });
+    
+    dialog.showModal();
+  });
+}
+
 function initials(name) {
   return String(name || 'P').trim().split(/\s+/).slice(0, 2).map(word => word[0]?.toUpperCase() || '').join('');
 }
@@ -366,7 +409,7 @@ async function forwardMessagesTo(targetConversationId) {
 async function deleteSelectedMessages() {
   const selected=state.messages.filter(m=>state.selectedMessageIds.has(m.id));
   if (!selected.length) return;
-  if (!window.confirm(`Excluir ${selected.length} mensagem(ns) selecionada(s)? Mensagens suas serão apagadas para todos; as recebidas, só para você.`)) return;
+  if (!await customConfirm('Excluir mensagens', `Excluir ${selected.length} mensagem(ns) selecionada(s)? Mensagens suas serão apagadas para todos; as recebidas, só para você.`)) return;
   try {
     for (const message of selected) {
       if (message.senderId===state.user.id) {
@@ -397,7 +440,13 @@ function showMessageContextMenu(message, x, y) {
   }
   option('↩ Responder', () => setReplyTo(message));
   option(message.isPinned ? '⌖ Desafixar mensagem' : '⌖ Fixar mensagem', async () => { await api(`/api/conversations/${message.conversationId}/messages/${message.id}/pin`,{method:'POST',body:JSON.stringify({pinned:!message.isPinned})}); await refreshMessages(); showToast(message.isPinned?'Mensagem desafixada.':'Mensagem fixada.'); });
-  option('☺ Reagir…', async () => { const choice=window.prompt('Escolha uma reação: 👍 ❤️ 😂 😮 😢 🔥 👏 🙏\nDeixe em branco para remover sua reação.','👍'); if(choice===null)return; const emoji=choice.trim(); await api(`/api/conversations/${message.conversationId}/messages/${message.id}/reaction`,{method:'POST',body:JSON.stringify({emoji})}); await refreshMessages(); });
+  option('☺ Reagir…', async () => { 
+    const emoji = await customReact(); 
+    if(emoji === null) return; 
+    const emojiTrimmed = emoji.trim(); 
+    await api(`/api/conversations/${message.conversationId}/messages/${message.id}/reaction`,{method:'POST',body:JSON.stringify({emoji: emojiTrimmed})}); 
+    await refreshMessages(); 
+  });
   option(message.isFavorite ? '★ Remover dos favoritos' : '☆ Adicionar aos favoritos', () => favoriteMessage(message,!message.isFavorite));
   option('➦ Encaminhar', () => openForwardDialog([message.id]));
   option('☷ Selecionar mensagem', () => startSelection(message.id));
@@ -430,7 +479,7 @@ function showMessageContextMenu(message, x, y) {
   }
   if (mine) {
     option('⌫ Apagar para todos', async () => {
-      if (!window.confirm('Apagar esta mensagem para todos, sem aviso na conversa?')) return;
+      if (!await customConfirm('Apagar para todos', 'Apagar esta mensagem para todos, sem aviso na conversa?')) return;
       await api(`/api/conversations/${message.conversationId}/messages/${message.id}`, { method: 'DELETE' });
       await refreshAll();
     }, true);
@@ -543,7 +592,6 @@ function renderMessages() {
     details.append(text('time', '', readableTime(message.createdAt)));
     if(mine) details.append(text('span','message-read-status',message.readAt?'✓✓ Lida':'✓ Enviada'));
     if (message.isFavorite) details.append(text('span','message-favorite-mark','★'));
-    // Exibe apenas o conteúdo interpretado; a transformação matemática não é mostrada na conversa.
     bubble.append(details);
     if(message.reactions?.length){
       const reactionRow=text('div','message-reactions','');
@@ -556,6 +604,15 @@ function renderMessages() {
       event.preventDefault();
       showMessageContextMenu(message, event.clientX, event.clientY);
     });
+    
+    // Adição de duplo clique para responder, similar ao Telegram
+    bubble.addEventListener('dblclick', event => {
+      if (!state.selectionMode && !event.target.closest('audio,a,button')) {
+        event.preventDefault();
+        setReplyTo(message);
+      }
+    });
+
     bubble.addEventListener('click',event=>{
       if (!state.selectionMode || event.target.closest('audio,a,button')) return;
       event.preventDefault();
@@ -1091,20 +1148,20 @@ $('#saveContactPreferences').addEventListener('click',async()=>{
 });
 $('#clearConversationButton').addEventListener('click',async()=>{
   const conversation=state.currentConversation;if(!conversation)return;
-  if(!window.confirm('Limpar esta conversa apenas para você? A outra pessoa manterá o histórico dela.'))return;
+  if(!await customConfirm('Limpar conversa', 'Limpar esta conversa apenas para você? A outra pessoa manterá o histórico dela.'))return;
   try{await api(`/api/conversations/${conversation.id}/clear`,{method:'POST',body:'{}'});cancelSelection();$('#contactDialog').close();await refreshAll();showToast('Conversa limpa para você.');}
   catch(error){showToast(error.message,true);}
 });
 $('#blockContactButton').addEventListener('click',async()=>{
   const conversation=state.currentConversation;if(!conversation)return;
   const action=conversation.blockedByMe?'unblock':'block';
-  if(action==='block'&&!window.confirm(`Bloquear ${conversation.partner.name}? Nenhum dos dois poderá enviar mensagens enquanto o bloqueio estiver ativo.`))return;
+  if(action==='block'&&!await customConfirm('Bloquear contato', `Bloquear ${conversation.partner.name}? Nenhum dos dois poderá enviar mensagens enquanto o bloqueio estiver ativo.`))return;
   try{await api(`/api/conversations/${conversation.id}/${action}`,{method:'POST',body:'{}'});await refreshAll();openContactDetails();showToast(action==='block'?'Contato bloqueado.':'Contato desbloqueado.');}
   catch(error){showToast(error.message,true);}
 });
 $('#deleteContactButton').addEventListener('click',async()=>{
   const conversation=state.currentConversation;if(!conversation)return;
-  if(!window.confirm(`Excluir ${conversation.partner.name} da sua lista e ocultar esta conversa para você? A outra pessoa manterá o próprio histórico.`))return;
+  if(!await customConfirm('Excluir contato', `Excluir ${conversation.partner.name} da sua lista e ocultar esta conversa para você? A outra pessoa manterá o próprio histórico.`))return;
   try{
     await api(`/api/conversations/${conversation.id}/contact`,{method:'DELETE'});
     $('#contactDialog').close();state.selectedId=null;state.currentConversation=null;state.currentPartner=null;state.messages=[];
