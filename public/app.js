@@ -11,12 +11,18 @@ const state = {
   events: null,
   authMode: 'login',
   currentPartner: null,
+  currentConversation: null,
   draftImage: null,
   draftAttachment: null,
   addMode: 'email',
   editMessageId: null,
   requests: {incoming:[],outgoing:[]},
   profileAvatarDraft: '',
+  selectionMode: false,
+  selectedMessageIds: new Set(),
+  replyToMessageId: null,
+  forwardMessageIds: [],
+  theme: 'dark',
 };
 let toastTimer;
 let refreshing = false;
@@ -102,7 +108,36 @@ function setAuthMode(mode) {
   $('#authSubtitle').textContent = register ? 'Comece uma nova história, com mensagens e imagens.' : 'Entre com sua conta para continuar suas conversas.';
   $('#authSubmit').firstElementChild.textContent = register ? 'Criar minha conta' : 'Entrar no Pegasus';
 }
+function applyTheme(theme, persist = true) {
+  state.theme = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = state.theme;
+  $('#themeToggle').textContent = state.theme === 'dark' ? '☼' : '☾';
+  $('#themeToggle').title = state.theme === 'dark' ? 'Ativar modo claro' : 'Ativar modo escuro';
+  $('#themeToggle').setAttribute('aria-label', $('#themeToggle').title);
+  const themeColor=document.querySelector('meta[name="theme-color"]');
+  if(themeColor)themeColor.content=state.theme==='dark'?'#09162f':'#e8f2ff';
+  if (persist) { try { localStorage.setItem('pegasus-theme', state.theme); } catch { /* armazenamento opcional */ } }
+}
+function showIncomingNotification(conversation) {
+  if (!conversation?.notificationsEnabled || conversation.id === state.selectedId || !conversation.lastMessage ||
+      conversation.lastMessage.senderId === state.user?.id || !('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    const notice = new Notification(conversation.partner.name, { body: conversation.lastMessage.preview || 'Nova mensagem no Pegasus.', icon: '/favicon.png' });
+    notice.onclick = () => { window.focus(); selectConversation(conversation.id); notice.close(); };
+  } catch { /* notificações não são essenciais para o chat */ }
+}
+function applyConversationStatus() {
+  const conversation = state.currentConversation;
+  const blocked = !!(conversation?.blockedByMe || conversation?.blockedByPartner);
+  $('#messageInput').disabled = blocked;
+  $('#sendButton').disabled = blocked;
+  $('#attachmentButton').disabled = blocked;
+  $('#voiceButton').disabled = blocked;
+  $('#messageInput').placeholder = conversation?.blockedByMe ? 'Você bloqueou este contato.' : conversation?.blockedByPartner ? 'Este contato bloqueou você.' : 'Escreva sua mensagem...';
+  $('#blockContactButton').textContent = conversation?.blockedByMe ? 'Desbloquear contato' : 'Bloquear contato';
+}
 function enterApp(user) {
+  try { applyTheme(localStorage.getItem('pegasus-theme') || 'dark', false); } catch { applyTheme('dark', false); }
   state.user = user;
   $('#authView').hidden = true;
   $('#chatView').hidden = false;
@@ -123,7 +158,11 @@ function signOut(notify = true) {
   state.events = null;
   state.user = null;
   state.selectedId = null;
+  state.currentConversation = null;
+  state.currentPartner = null;
   state.messages = [];
+  cancelSelection();
+  clearReply();
   state.conversations = [];
   state.draftImage = null;
   $('#chatView').hidden = true;
@@ -140,9 +179,24 @@ async function refreshAll() {
   refreshing = true;
   try {
     const data = await api('/api/conversations');
+    const previous = new Map(state.conversations.map(c => [c.id,c.lastMessage?.id || 0]));
     state.conversations = data.conversations;
+    for (const conversation of state.conversations) {
+      const oldId=previous.get(conversation.id);
+      if (previous.has(conversation.id) && conversation.lastMessage?.id > oldId) showIncomingNotification(conversation);
+    }
     renderConversations();
-    if (state.selectedId != null) await refreshMessages();
+    if (state.selectedId != null) {
+      state.currentConversation = state.conversations.find(item => item.id === state.selectedId) || state.currentConversation;
+      if (state.currentConversation) {
+        state.currentPartner=state.currentConversation.partner;
+        $('#partnerName').textContent=state.currentPartner.name;
+        $('#partnerEmail').textContent=state.currentPartner.bio || state.currentPartner.email;
+        setAvatar($('#partnerAvatar'),state.currentPartner);
+        applyConversationStatus();
+      }
+      await refreshMessages();
+    }
   } catch (error) {
     if (state.user) showToast(error.message, true);
   } finally {
@@ -155,7 +209,7 @@ function renderConversations() {
   const list = $('#conversationList');
   list.replaceChildren();
   const conversations = state.conversations.filter(c => !query ||
-    c.partner.name.toLocaleLowerCase('pt-BR').includes(query) || c.partner.email.toLocaleLowerCase('pt-BR').includes(query));
+    c.partner.name.toLocaleLowerCase('pt-BR').includes(query) || c.partner.realName?.toLocaleLowerCase('pt-BR').includes(query) || c.partner.email.toLocaleLowerCase('pt-BR').includes(query));
   $('#chatCount').textContent = String(state.conversations.length).padStart(2, '0');
   if (!conversations.length) {
     list.append(text('p', 'sidebar-placeholder', query ? 'Nenhuma conversa encontrada.' : 'Nenhuma conversa ainda. Use o botão + para começar.'));
@@ -183,12 +237,15 @@ function renderConversations() {
 async function selectConversation(id) {
   voiceRecorder?.cancel();
   hideMessageContextMenu();
+  cancelSelection();
+  clearReply();
   if (!state.user) return;
   state.selectedId = id;
   state.messages = [];
   renderMessages();
   const conversation = state.conversations.find(item => item.id === id);
   if (!conversation) return;
+  state.currentConversation = conversation;
   state.currentPartner = conversation.partner;
   $('#partnerName').textContent = conversation.partner.name;
   $('#partnerEmail').textContent = conversation.partner.bio || conversation.partner.email;
@@ -196,26 +253,131 @@ async function selectConversation(id) {
   $('#welcomeScreen').hidden = true;
   $('#conversationView').hidden = false;
   $('#chatView').classList.add('chat-open');
+  applyConversationStatus();
   renderConversations();
   try { await refreshMessages(); }
   catch (error) { showToast(error.message, true); }
-  $('#messageInput').focus();
+  if (!conversation.blockedByMe && !conversation.blockedByPartner) $('#messageInput').focus();
 }
-async function refreshMessages() {
+async function refreshMessages(aroundId = null) {
   const requested = state.selectedId;
   if (requested == null) return;
-  const { messages } = await api(`/api/conversations/${requested}/messages`);
+  const { messages } = await api(`/api/conversations/${requested}/messages${aroundId ? `?around=${encodeURIComponent(aroundId)}` : ''}`);
   if (state.selectedId !== requested) return;
-  const previousSignature = state.messages.map(m => `${m.id}:${m.revision || 0}`).join('|');
+  const previousSignature = state.messages.map(m => `${m.id}:${m.revision || 0}:${m.isFavorite?1:0}:${m.replyTo?.id||0}:${m.replyTo?.preview||''}:${m.forwarded?1:0}`).join('|');
   const scrollbox = $('#messageList');
   const isNearBottom = scrollbox.scrollHeight - scrollbox.scrollTop - scrollbox.clientHeight < 110;
   state.messages = messages;
-  const newSignature = messages.map(m => `${m.id}:${m.revision || 0}`).join('|');
+  const newSignature = messages.map(m => `${m.id}:${m.revision || 0}:${m.isFavorite?1:0}:${m.replyTo?.id||0}:${m.replyTo?.preview||''}:${m.forwarded?1:0}`).join('|');
   if (previousSignature === newSignature) return;
   renderMessages();
   if (isNearBottom || !previousSignature) requestAnimationFrame(() => { scrollbox.scrollTop = scrollbox.scrollHeight; });
 }
 function hideMessageContextMenu() { $('#messageContextMenu').hidden = true; }
+function messagePreview(message) {
+  if (!message) return 'Mensagem indisponível';
+  if (message.kind === 'text') return safeDecode(message.ciphertext).replace(/\s+/g,' ').slice(0,180);
+  return previewMessage(message).slice(0,180);
+}
+function setReplyTo(message) {
+  state.replyToMessageId=message.id;
+  $('#replyComposerName').textContent=message.senderId===state.user.id?'Você':(state.currentPartner?.name||'Contato');
+  $('#replyComposerText').textContent=messagePreview(message);
+  $('#replyComposer').hidden=false;
+  $('#messageInput').focus();
+}
+function clearReply() {
+  state.replyToMessageId=null;
+  if ($('#replyComposer')) $('#replyComposer').hidden=true;
+}
+function updateSelectionToolbar() {
+  const toolbar=$('#selectionToolbar');
+  toolbar.hidden=!state.selectionMode;
+  const count=state.selectedMessageIds.size;
+  $('#selectionCount').textContent=`${count} ${count===1?'mensagem selecionada':'mensagens selecionadas'}`;
+  const selected=state.messages.filter(m=>state.selectedMessageIds.has(m.id));
+  $('#selectionFavorite').textContent=selected.length&&selected.every(m=>m.isFavorite)?'★ Remover favoritos':'☆ Favoritar';
+  $('#selectionForward').disabled=count===0;
+  $('#selectionFavorite').disabled=count===0;
+  $('#selectionDelete').disabled=count===0;
+}
+function startSelection(messageId) {
+  state.selectionMode=true;
+  state.selectedMessageIds=new Set([messageId]);
+  renderMessages();
+  updateSelectionToolbar();
+}
+function toggleMessageSelection(messageId) {
+  if (!state.selectionMode) state.selectionMode=true;
+  if (state.selectedMessageIds.has(messageId)) state.selectedMessageIds.delete(messageId);
+  else state.selectedMessageIds.add(messageId);
+  if (!state.selectedMessageIds.size) state.selectionMode=false;
+  renderMessages();
+  updateSelectionToolbar();
+}
+function cancelSelection() {
+  state.selectionMode=false;
+  state.selectedMessageIds.clear();
+  if ($('#selectionToolbar')) updateSelectionToolbar();
+}
+async function favoriteMessage(message, favorite=!message.isFavorite) {
+  await api(`/api/conversations/${message.conversationId}/messages/${message.id}/favorite`,{
+    method:'POST',body:JSON.stringify({favorite}),
+  });
+  await refreshMessages();
+  await refreshAll();
+  showToast(favorite?'Mensagem adicionada aos favoritos.':'Mensagem removida dos favoritos.');
+}
+function openForwardDialog(messageIds) {
+  state.forwardMessageIds=[...new Set(messageIds.map(Number))].filter(id=>state.messages.some(m=>m.id===id));
+  if (!state.forwardMessageIds.length) return;
+  $('#forwardCountLabel').textContent=`${state.forwardMessageIds.length} ${state.forwardMessageIds.length===1?'mensagem selecionada':'mensagens selecionadas'}. Escolha o destino.`;
+  const list=$('#forwardConversationList');list.replaceChildren();
+  const destinations=state.conversations.filter(c=>c.id!==state.selectedId);
+  if (!destinations.length) list.append(text('p','empty-panel','Crie outra conversa para encaminhar mensagens.'));
+  for (const conversation of destinations) {
+    const button=text('button','forward-conversation-item','');button.type='button';
+    const avatar=text('div','contact-avatar','');setAvatar(avatar,conversation.partner);
+    const info=text('span','',conversation.partner.name);
+    button.append(avatar,info);
+    button.addEventListener('click',()=>forwardMessagesTo(conversation.id));
+    list.append(button);
+  }
+  $('#forwardDialog').showModal();
+}
+async function forwardMessagesTo(targetConversationId) {
+  const ids=[...state.forwardMessageIds];
+  const sourceId=state.selectedId;
+  try {
+    for (const messageId of ids) {
+      await api(`/api/conversations/${sourceId}/messages/${messageId}/forward`,{
+        method:'POST',body:JSON.stringify({targetConversationId}),
+      });
+    }
+    $('#forwardDialog').close();
+    state.forwardMessageIds=[];
+    cancelSelection();
+    await refreshAll();
+    showToast(ids.length===1?'Mensagem encaminhada.':`${ids.length} mensagens encaminhadas.`);
+  } catch(error) { showToast(error.message,true); }
+}
+async function deleteSelectedMessages() {
+  const selected=state.messages.filter(m=>state.selectedMessageIds.has(m.id));
+  if (!selected.length) return;
+  if (!window.confirm(`Excluir ${selected.length} mensagem(ns) selecionada(s)? Mensagens suas serão apagadas para todos; as recebidas, só para você.`)) return;
+  try {
+    for (const message of selected) {
+      if (message.senderId===state.user.id) {
+        await api(`/api/conversations/${message.conversationId}/messages/${message.id}`,{method:'DELETE'});
+      } else {
+        await api(`/api/conversations/${message.conversationId}/messages/${message.id}/hide`,{method:'POST',body:'{}'});
+      }
+    }
+    cancelSelection();
+    await refreshAll();
+    showToast('Mensagens excluídas.');
+  } catch(error) { showToast(error.message,true); }
+}
 function showMessageContextMenu(message, x, y) {
   const menu = $('#messageContextMenu');
   menu.replaceChildren();
@@ -231,6 +393,10 @@ function showMessageContextMenu(message, x, y) {
     });
     menu.append(button);
   }
+  option('↩ Responder', () => setReplyTo(message));
+  option(message.isFavorite ? '★ Remover dos favoritos' : '☆ Adicionar aos favoritos', () => favoriteMessage(message,!message.isFavorite));
+  option('➦ Encaminhar', () => openForwardDialog([message.id]));
+  option('☷ Selecionar mensagem', () => startSelection(message.id));
   if (mine && message.kind === 'text') {
     option('✎ Editar mensagem', () => {
       state.editMessageId = message.id;
@@ -255,9 +421,7 @@ function showMessageContextMenu(message, x, y) {
       const download = document.createElement('a');
       download.href = file.dataUrl;
       download.download = file.name || 'arquivo-pegasus';
-      document.body.append(download);
-      download.click();
-      download.remove();
+      document.body.append(download); download.click(); download.remove();
     });
   }
   if (mine) {
@@ -297,6 +461,7 @@ function renderMessages() {
     empty.append(text('h3', '', 'Uma conversa só de vocês.'));
     empty.append(text('p', '', 'Envie a primeira mensagem ou compartilhe uma imagem para começar a história.'));
     list.append(empty);
+    updateSelectionToolbar();
     return;
   }
   let previousDate = '';
@@ -308,7 +473,18 @@ function renderMessages() {
     }
     const mine = message.senderId === state.user.id;
     const wrapper = text('div', `message-row ${mine ? 'mine' : 'theirs'}`, '');
+    wrapper.dataset.messageId=String(message.id);
+    wrapper.id=`message-${message.id}`;
+    wrapper.classList.toggle('selected',state.selectedMessageIds.has(message.id));
     const bubble = text('div', `message-bubble ${message.kind === 'image' ? 'image-bubble' : ''}`, '');
+    if (message.forwarded) bubble.append(text('span','message-forwarded-tag','↗ Encaminhada'));
+    if (message.replyTo) {
+      const quote=text('button','reply-quote','');quote.type='button';
+      quote.append(text('strong','',message.replyTo.senderId===state.user.id?'Você':(state.currentPartner?.name||'Contato')),
+        text('span','',message.replyTo.preview||'Mensagem respondida'));
+      quote.addEventListener('click',event=>{event.stopPropagation();jumpToMessage(message.replyTo.id);});
+      bubble.append(quote);
+    }
 
     if (message.kind === 'image') {
       const figure = text('figure', 'message-media', '');
@@ -360,6 +536,7 @@ function renderMessages() {
 
     const details = text('div', 'message-details', '');
     details.append(text('time', '', readableTime(message.createdAt)));
+    if (message.isFavorite) details.append(text('span','message-favorite-mark','★'));
     // Exibe apenas o conteúdo interpretado; a transformação matemática não é mostrada na conversa.
     bubble.append(details);
     bubble.tabIndex = 0;
@@ -367,6 +544,11 @@ function renderMessages() {
     bubble.addEventListener('contextmenu', event => {
       event.preventDefault();
       showMessageContextMenu(message, event.clientX, event.clientY);
+    });
+    bubble.addEventListener('click',event=>{
+      if (!state.selectionMode || event.target.closest('audio,a,button')) return;
+      event.preventDefault();
+      toggleMessageSelection(message.id);
     });
     bubble.addEventListener('keydown', event => {
       if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
@@ -388,6 +570,20 @@ function renderMessages() {
     wrapper.append(bubble);
     list.append(wrapper);
   }
+  updateSelectionToolbar();
+}
+async function jumpToMessage(messageId) {
+  let target=document.getElementById(`message-${messageId}`);
+  if (!target) {
+    try { await refreshMessages(messageId); }
+    catch(error) { showToast(error.message,true); return; }
+    target=document.getElementById(`message-${messageId}`);
+  }
+  if (target) {
+    target.scrollIntoView({behavior:'smooth',block:'center'});
+    target.classList.add('jump-highlight');
+    setTimeout(()=>target.classList.remove('jump-highlight'),1800);
+  } else showToast('Essa mensagem não está mais disponível.');
 }
 function setAddMode(next) {
   state.addMode = next;
@@ -703,6 +899,7 @@ $('#messageForm').addEventListener('submit', async event => {
   const originalText = input.value;
   const draftImage = state.draftImage;
   const attachment = state.draftAttachment;
+  const replyToId = state.replyToMessageId;
   if (!originalText.trim() && !draftImage && !attachment) return;
   const button = $('#sendButton');
   button.disabled = true;
@@ -710,7 +907,7 @@ $('#messageForm').addEventListener('submit', async event => {
     if (draftImage) {
       await api(`/api/conversations/${state.selectedId}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ kind: 'image', image: { dataUrl: draftImage.dataUrl, name: draftImage.name } }),
+        body: JSON.stringify({ kind: 'image', image: { dataUrl: draftImage.dataUrl, name: draftImage.name }, replyToId }),
       });
       clearDraftImage();
     }
@@ -718,8 +915,8 @@ $('#messageForm').addEventListener('submit', async event => {
       await api(`/api/conversations/${state.selectedId}/messages`, {
         method: 'POST',
         body: JSON.stringify(attachment.kind === 'contact'
-          ? {kind:'contact',contactId:attachment.contactId}
-          : {kind:attachment.kind,file:attachment.file}),
+          ? {kind:'contact',contactId:attachment.contactId,replyToId}
+          : {kind:attachment.kind,file:attachment.file,replyToId}),
       });
       clearDraftImage();
     }
@@ -727,17 +924,19 @@ $('#messageForm').addEventListener('submit', async event => {
       const ciphertext = encodePegasus(originalText);
       await api(`/api/conversations/${state.selectedId}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ kind: 'text', ciphertext }),
+        body: JSON.stringify({ kind: 'text', ciphertext, replyToId }),
       });
       if (input.value === originalText) input.value = '';
       input.style.height = 'auto';
     }
+    if (replyToId===state.replyToMessageId) clearReply();
     await refreshAll();
     $('#messageList').scrollTop = $('#messageList').scrollHeight;
   } catch (error) {
     showToast(error.message, true);
   } finally {
     button.disabled = false;
+    applyConversationStatus();
     input.focus();
   }
 });
@@ -768,12 +967,14 @@ $('#messageInput').addEventListener('input', event => {
 });
 const voiceRecorder = setupVoiceRecorder({
   getConversationId: () => state.user ? state.selectedId : null,
+  getReplyToId: () => state.replyToMessageId,
   canStart: () => !state.draftImage && !state.draftAttachment,
   onError: message => showToast(message, true),
-  onSend: async ({conversationId, file}) => {
+  onSend: async ({conversationId, file, replyToId}) => {
     await api(`/api/conversations/${conversationId}/messages`, {
-      method: 'POST', body: JSON.stringify({kind: 'audio', file}),
+      method: 'POST', body: JSON.stringify({kind: 'audio', file, replyToId}),
     });
+    clearReply();
     await refreshAll();
     $('#messageList').scrollTop = $('#messageList').scrollHeight;
   },
@@ -782,9 +983,123 @@ window.addEventListener('pagehide', () => voiceRecorder.cancel());
 
 $('#backButton').addEventListener('click', () => {
   voiceRecorder.cancel();
+  cancelSelection();
+  clearReply();
   $('#chatView').classList.remove('chat-open');
 });
 
+$('#themeToggle').addEventListener('click',()=>applyTheme(state.theme==='dark'?'light':'dark'));
+$('#selectionCancel').addEventListener('click',cancelSelection);
+$('#selectionForward').addEventListener('click',()=>openForwardDialog([...state.selectedMessageIds]));
+$('#selectionFavorite').addEventListener('click',async()=>{
+  const selected=state.messages.filter(m=>state.selectedMessageIds.has(m.id));
+  if(!selected.length)return;
+  const favorite=!selected.every(m=>m.isFavorite);
+  try{
+    for(const message of selected) await api(`/api/conversations/${message.conversationId}/messages/${message.id}/favorite`,{method:'POST',body:JSON.stringify({favorite})});
+    cancelSelection();await refreshMessages();await refreshAll();showToast(favorite?'Mensagens adicionadas aos favoritos.':'Mensagens removidas dos favoritos.');
+  }catch(error){showToast(error.message,true);}
+});
+$('#selectionDelete').addEventListener('click',deleteSelectedMessages);
+$('#cancelReplyButton').addEventListener('click',clearReply);
+$('#closeForwardDialog').addEventListener('click',()=>$('#forwardDialog').close());
+$('#cancelForwardButton').addEventListener('click',()=>$('#forwardDialog').close());
+$('#favoritesButton').addEventListener('click',async()=>{
+  const list=$('#favoritesList');list.replaceChildren();
+  try{
+    const {favorites}=await api('/api/favorites');
+    if(!favorites.length)list.append(text('p','empty-panel','Você ainda não favoritou mensagens. Use o botão direito em uma mensagem para salvá-la aqui.'));
+    for(const favorite of favorites){
+      const button=text('button','favorite-item','');button.type='button';
+      button.append(text('strong','',favorite.partner.name),text('span','',favorite.message.kind==='text'?safeDecode(favorite.message.ciphertext):messagePreview(favorite.message)),text('small','',`${readableDay(favorite.message.createdAt)} · ${readableTime(favorite.message.createdAt)}`));
+      button.addEventListener('click',async()=>{
+        try{
+          let convo=state.conversations.find(c=>c.id===favorite.conversationId);
+          if(!convo){await api('/api/conversations',{method:'POST',body:JSON.stringify({email:favorite.partner.email})});await refreshAll();convo=state.conversations.find(c=>c.id===favorite.conversationId);}
+          $('#favoritesDialog').close();
+          if(convo){await selectConversation(convo.id);await jumpToMessage(favorite.message.id);}
+        }catch(error){showToast(error.message,true);}
+      });
+      list.append(button);
+    }
+    $('#favoritesDialog').showModal();
+  }catch(error){showToast(error.message,true);}
+});
+$('#closeFavoritesDialog').addEventListener('click',()=>$('#favoritesDialog').close());
+
+function renderContactMedia(){
+  const list=$('#contactMediaList');list.replaceChildren();
+  const media=state.messages.filter(m=>['image','audio','document'].includes(m.kind));
+  $('#contactMediaCount').textContent=`${media.length} ${media.length===1?'arquivo':'arquivos'}`;
+  if(!media.length){list.append(text('p','empty-panel','Ainda não há imagens, áudios ou documentos nesta conversa.'));return;}
+  for(const message of [...media].reverse()){
+    const button=text('button','contact-media-item','');button.type='button';
+    if(message.kind==='image'){
+      const img=document.createElement('img');img.src=message.image.dataUrl;img.alt='';button.append(img);
+    }else button.append(text('strong','',message.kind==='audio'?'♫':'▤'));
+    const info=text('span','',message.kind==='image'?(message.image.mime==='image/gif'?'GIF':'Imagem'):message.file.name|| (message.kind==='audio'?'Áudio':'Documento'));
+    info.append(text('small','',`${message.senderId===state.user.id?'Enviado por você':'Recebido'} · ${readableDay(message.createdAt)}`));
+    button.append(info);
+    button.addEventListener('click',()=>{
+      const file=message.kind==='image'?message.image:message.file;
+      const a=document.createElement('a');a.href=file.dataUrl;a.download=file.name||`${message.kind}-pegasus`;document.body.append(a);a.click();a.remove();
+    });
+    list.append(button);
+  }
+}
+function openContactDetails(){
+  const conversation=state.currentConversation;
+  if(!conversation)return;
+  const partner=conversation.partner;
+  $('#contactDetailTitle').textContent=partner.realName||partner.name;
+  $('#contactDetailBio').textContent=partner.bio||'Sem texto de perfil.';
+  $('#contactDetailEmail').textContent=partner.email||'—';
+  $('#contactDetailCode').textContent=partner.friendCode||'—';
+  $('#contactDetailStarted').textContent=readableDay(conversation.createdAt);
+  $('#contactAliasInput').value=partner.alias||'';
+  $('#contactNotificationsEnabled').checked=conversation.notificationsEnabled!==false;
+  setAvatar($('#contactDetailAvatar'),partner);
+  applyConversationStatus();
+  renderContactMedia();
+  if (!$('#contactDialog').open) $('#contactDialog').showModal();
+}
+$('#contactDetailsButton').addEventListener('click',openContactDetails);
+$('#closeContactDialog').addEventListener('click',()=>$('#contactDialog').close());
+$('#copyContactEmail').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(state.currentPartner.email);showToast('E-mail copiado.');}catch{showToast(state.currentPartner.email);}});
+$('#copyContactCode').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(state.currentPartner.friendCode);showToast('Código copiado.');}catch{showToast(state.currentPartner.friendCode);}});
+$('#saveContactPreferences').addEventListener('click',async()=>{
+  const conversation=state.currentConversation;if(!conversation)return;
+  const notificationsEnabled=$('#contactNotificationsEnabled').checked;
+  try{
+    if(notificationsEnabled&&'Notification' in window&&Notification.permission==='default') await Notification.requestPermission();
+    await api(`/api/conversations/${conversation.id}/preferences`,{method:'PUT',body:JSON.stringify({alias:$('#contactAliasInput').value,notificationsEnabled})});
+    $('#contactDialog').close();await refreshAll();showToast('Preferências do contato salvas.');
+  }catch(error){showToast(error.message,true);}
+});
+$('#clearConversationButton').addEventListener('click',async()=>{
+  const conversation=state.currentConversation;if(!conversation)return;
+  if(!window.confirm('Limpar esta conversa apenas para você? A outra pessoa manterá o histórico dela.'))return;
+  try{await api(`/api/conversations/${conversation.id}/clear`,{method:'POST',body:'{}'});cancelSelection();$('#contactDialog').close();await refreshAll();showToast('Conversa limpa para você.');}
+  catch(error){showToast(error.message,true);}
+});
+$('#blockContactButton').addEventListener('click',async()=>{
+  const conversation=state.currentConversation;if(!conversation)return;
+  const action=conversation.blockedByMe?'unblock':'block';
+  if(action==='block'&&!window.confirm(`Bloquear ${conversation.partner.name}? Nenhum dos dois poderá enviar mensagens enquanto o bloqueio estiver ativo.`))return;
+  try{await api(`/api/conversations/${conversation.id}/${action}`,{method:'POST',body:'{}'});await refreshAll();openContactDetails();showToast(action==='block'?'Contato bloqueado.':'Contato desbloqueado.');}
+  catch(error){showToast(error.message,true);}
+});
+$('#deleteContactButton').addEventListener('click',async()=>{
+  const conversation=state.currentConversation;if(!conversation)return;
+  if(!window.confirm(`Excluir ${conversation.partner.name} da sua lista e ocultar esta conversa para você? A outra pessoa manterá o próprio histórico.`))return;
+  try{
+    await api(`/api/conversations/${conversation.id}/contact`,{method:'DELETE'});
+    $('#contactDialog').close();state.selectedId=null;state.currentConversation=null;state.currentPartner=null;state.messages=[];
+    $('#conversationView').hidden=true;$('#welcomeScreen').hidden=false;$('#chatView').classList.remove('chat-open');cancelSelection();clearReply();await refreshAll();showToast('Contato excluído da sua lista.');
+  }catch(error){showToast(error.message,true);}
+});
+
+try { applyTheme(localStorage.getItem('pegasus-theme') || 'dark', false); } catch { applyTheme('dark', false); }
 (async function startup() {
   try {
     const { user } = await api('/api/me');

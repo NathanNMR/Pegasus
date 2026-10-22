@@ -1,4 +1,4 @@
-/** Gravação local de mensagens de voz com o MediaRecorder do navegador. */
+/** Gravação de mensagens de voz que são enviadas ao parar, sem pré-escuta. */
 export const VOICE_LIMIT_MS = 120_000;
 export const VOICE_LIMIT_BYTES = 4_000_000;
 
@@ -26,24 +26,21 @@ export function formatRecordingDuration(ms) {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
-export function setupVoiceRecorder({ getConversationId, canStart, onSend, onError }) {
+export function setupVoiceRecorder({ getConversationId, canStart, getReplyToId = () => null, onSend, onError }) {
   const pick = id => document.getElementById(id);
   const panel = pick('voicePanel');
   const trigger = pick('voiceButton');
   const indicator = pick('voiceIndicator');
   const label = pick('voiceStatus');
   const duration = pick('voiceTimer');
-  const player = pick('voicePreview');
   const stopButton = pick('voiceStopButton');
   const cancelButton = pick('voiceDiscardButton');
-  const sendButton = pick('voiceSendButton');
 
   let recorder = null;
   let stream = null;
   let timer = null;
-  let recorded = null;
-  let previewUrl = '';
   let recordingConversationId = null;
+  let recordingReplyToId = null;
   let startTime = 0;
   let operation = 0;
   let pending = false;
@@ -61,14 +58,6 @@ export function setupVoiceRecorder({ getConversationId, canStart, onSend, onErro
     if (timer) clearInterval(timer);
     timer = null;
   }
-  function clearPreview() {
-    player.pause();
-    player.removeAttribute('src');
-    player.load();
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    previewUrl = '';
-    recorded = null;
-  }
   function showState(mode) {
     panel.hidden = mode === 'idle';
     trigger.classList.toggle('is-recording', mode === 'recording');
@@ -76,36 +65,64 @@ export function setupVoiceRecorder({ getConversationId, canStart, onSend, onErro
     trigger.setAttribute('aria-pressed', String(mode === 'recording'));
     indicator.hidden = mode !== 'recording';
     stopButton.hidden = mode !== 'recording';
-    player.hidden = mode !== 'preview';
-    sendButton.hidden = mode !== 'preview';
+    cancelButton.hidden = !['requesting', 'recording'].includes(mode);
     cancelButton.disabled = sending;
-    sendButton.disabled = sending;
-    label.textContent = mode === 'recording' ? 'Gravando mensagem de voz' : mode === 'preview' ? 'Ouça antes de enviar' : '';
+    stopButton.disabled = sending || mode !== 'recording';
+    label.textContent = mode === 'recording' ? 'Gravando mensagem de voz' :
+      mode === 'requesting' ? 'Solicitando acesso ao microfone…' :
+      mode === 'finalizing' ? 'Finalizando e enviando áudio…' :
+      mode === 'sending' ? 'Enviando mensagem de voz…' : '';
   }
   function cancel() {
     operation++;
     canceling = true;
     stopTimer();
     if (recorder && recorder.state !== 'inactive') {
-      try { recorder.stop(); } catch { /* dispositivo encerrado */ }
+      try { recorder.stop(); } catch { /* dispositivo já encerrou */ }
     }
     recorder = null;
     stopStream();
-    clearPreview();
     chunks = [];
     chunkBytes = 0;
     pending = false;
     sending = false;
     tooLarge = false;
     recordingConversationId = null;
+    recordingReplyToId = null;
     showState('idle');
+    canceling = false;
   }
   function finishRecording() {
-    if (!recorder || recorder.state === 'inactive') return;
-    recorder.stop();
+    if (!recorder || recorder.state === 'inactive' || sending) return;
     stopTimer();
     stopButton.disabled = true;
-    label.textContent = 'Finalizando gravação...';
+    label.textContent = 'Finalizando e enviando áudio…';
+    showState('finalizing');
+    try { recorder.stop(); }
+    catch { cancel(); onError('Não foi possível finalizar a gravação.'); }
+  }
+  async function sendBlob({ blob, mime, extension, conversationId, replyToId, savedOperation }) {
+    if (savedOperation !== operation) return;
+    sending = true;
+    showState('sending');
+    label.textContent = 'Enviando mensagem de voz…';
+    const name = `voz-${Date.now()}.${extension}`;
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Não foi possível preparar o áudio.'));
+        reader.readAsDataURL(new Blob([blob], { type: mime }));
+      });
+      if (savedOperation !== operation) return;
+      await onSend({ conversationId, replyToId, file: { name, dataUrl, voice: true } });
+      if (savedOperation !== operation) return;
+      cancel();
+    } catch (error) {
+      if (savedOperation !== operation) return;
+      cancel();
+      onError(error.message || 'Não foi possível enviar a mensagem de voz.');
+    }
   }
   async function start() {
     if (pending || sending || (recorder && recorder.state !== 'inactive')) return;
@@ -121,15 +138,10 @@ export function setupVoiceRecorder({ getConversationId, canStart, onSend, onErro
     canceling = false;
     const myOperation = ++operation;
     recordingConversationId = getConversationId();
+    recordingReplyToId = getReplyToId();
     pending = true;
-    panel.hidden = false;
-    trigger.disabled = true;
-    label.textContent = 'Solicitando acesso ao microfone...';
     duration.textContent = '00:00';
-    indicator.hidden = true;
-    stopButton.hidden = true;
-    player.hidden = true;
-    sendButton.hidden = true;
+    showState('requesting');
     try {
       const media = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false,
@@ -159,31 +171,34 @@ export function setupVoiceRecorder({ getConversationId, canStart, onSend, onErro
           onError('Ocorreu um erro ao gravar áudio.');
         }
       });
-      activeRecorder.addEventListener('stop', () => {
+      activeRecorder.addEventListener('stop', async () => {
         if (myOperation !== operation || canceling) return;
         stopStream();
         stopTimer();
         const rawMime = activeRecorder.mimeType || mime;
         const outputMime = rawMime.split(';')[0].toLowerCase();
         const extension = fileExtensionForMime(outputMime);
-        const blob = new Blob(chunks, {type: outputMime});
+        const blob = new Blob(chunks, { type: outputMime });
         recorder = null;
         chunks = [];
         chunkBytes = 0;
         if (!extension || !blob.size || blob.size > VOICE_LIMIT_BYTES || tooLarge) {
           cancel();
-          return onError('Áudio inválido ou maior que 4 MB. Grave uma mensagem mais curta.');
+          onError('Áudio inválido ou maior que 4 MB. Grave uma mensagem mais curta.');
+          return;
         }
-        recorded = {blob, mime: outputMime, extension};
-        previewUrl = URL.createObjectURL(blob);
-        player.src = previewUrl;
-        pending = false;
-        showState('preview');
+        if (getConversationId() !== recordingConversationId) {
+          cancel();
+          onError('A conversa foi alterada. Grave novamente.');
+          return;
+        }
+        await sendBlob({ blob, mime: outputMime, extension, conversationId: recordingConversationId,
+          replyToId: recordingReplyToId, savedOperation: myOperation });
       });
       for (const track of media.getAudioTracks()) {
         track.addEventListener('ended', () => {
           if (myOperation === operation && recorder?.state === 'recording') finishRecording();
-        }, {once: true});
+        }, { once: true });
       }
       pending = false;
       startTime = Date.now();
@@ -207,40 +222,9 @@ export function setupVoiceRecorder({ getConversationId, canStart, onSend, onErro
       }
     }
   }
-  async function send() {
-    if (!recorded || sending || !recordingConversationId) return;
-    if (getConversationId() !== recordingConversationId) {
-      cancel();
-      return onError('A conversa foi alterada. Grave novamente.');
-    }
-    sending = true;
-    showState('preview');
-    label.textContent = 'Enviando mensagem de voz...';
-    const savedOperation = operation;
-    const {blob, mime, extension} = recorded;
-    const name = `voz-${Date.now()}.${extension}`;
-    try {
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error('Não foi possível preparar o áudio.'));
-        reader.readAsDataURL(new Blob([blob], {type: mime}));
-      });
-      if (savedOperation !== operation) return;
-      await onSend({conversationId: recordingConversationId, file: {name, dataUrl, voice: true}});
-      if (savedOperation !== operation) return;
-      cancel();
-    } catch (error) {
-      if (savedOperation !== operation) return;
-      sending = false;
-      showState('preview');
-      onError(error.message || 'Não foi possível enviar a mensagem de voz.');
-    }
-  }
   trigger.addEventListener('click', start);
   stopButton.addEventListener('click', finishRecording);
   cancelButton.addEventListener('click', cancel);
-  sendButton.addEventListener('click', send);
   showState('idle');
-  return {cancel, start};
+  return { cancel, start };
 }

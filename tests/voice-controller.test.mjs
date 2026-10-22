@@ -40,9 +40,9 @@ class FakeReader {
   }
 }
 
-test('fluxo completo de gravar > parar > pré-escutar > enviar e descartar (simulação do microfone)', async()=>{
+test('fluxo de gravar > parar e enviar sem pré-escuta, e cancelar (simulação do microfone)', async()=>{
   const original={document:globalThis.document,window:globalThis.window,navigator:globalThis.navigator,MediaRecorder:globalThis.MediaRecorder,FileReader:globalThis.FileReader};
-  const ids=['voicePanel','voiceButton','voiceIndicator','voiceStatus','voiceTimer','voicePreview','voiceStopButton','voiceDiscardButton','voiceSendButton'];
+  const ids=['voicePanel','voiceButton','voiceIndicator','voiceStatus','voiceTimer','voiceStopButton','voiceDiscardButton'];
   const elements=Object.fromEntries(ids.map(id=>[id,new Element()]));
   let microphoneStopped=0;
   const stream={getTracks:()=>[{stop:()=>{microphoneStopped++},addEventListener:()=>{}}],getAudioTracks:()=>[]};
@@ -64,11 +64,9 @@ test('fluxo completo de gravar > parar > pré-escutar > enviar e descartar (simu
     assert.equal(elements.voiceStopButton.hidden,false);
     assert.equal(elements.voiceIndicator.hidden,false);
     elements.voiceStopButton.click();
-    assert.equal(elements.voiceSendButton.hidden,false);
-    assert.equal(elements.voicePreview.hidden,false);
-    assert.match(elements.voicePreview.src,/^blob:/);
-    await elements.voiceSendButton.click();
+    for(let i=0;i<20&&sent.length===0;i++) await new Promise(resolve=>setTimeout(resolve,0));
     assert.equal(sent.length,1);
+    assert.equal(elements.voicePanel.hidden,true);
     assert.equal(sent[0].conversationId,17);
     assert.equal(sent[0].file.voice,true);
     assert.match(sent[0].file.name,/^voz-\d+\.webm$/);

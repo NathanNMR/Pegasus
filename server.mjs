@@ -97,13 +97,38 @@ CREATE INDEX IF NOT EXISTS chat_requests_recipient ON chat_requests(recipient_id
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_friend_code ON users(friend_code)');
 const messageCols = db.prepare('PRAGMA table_info(messages)').all().map(c => c.name);
 if (!messageCols.includes('revision')) db.exec('ALTER TABLE messages ADD COLUMN revision INTEGER NOT NULL DEFAULT 0');
+if (!messageCols.includes('reply_to_id')) db.exec('ALTER TABLE messages ADD COLUMN reply_to_id INTEGER REFERENCES messages(id) ON DELETE SET NULL');
+if (!messageCols.includes('forwarded_from')) db.exec('ALTER TABLE messages ADD COLUMN forwarded_from INTEGER REFERENCES messages(id) ON DELETE SET NULL');
 // Mensagens recebidas podem ser ocultadas pelo destinatário sem alterar o histórico alheio.
 db.exec(`CREATE TABLE IF NOT EXISTS message_hides (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
   PRIMARY KEY(user_id, message_id)
 ) STRICT;
-CREATE INDEX IF NOT EXISTS message_hides_message_id ON message_hides(message_id)`);
+CREATE INDEX IF NOT EXISTS message_hides_message_id ON message_hides(message_id);
+CREATE TABLE IF NOT EXISTS message_favorites (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY(user_id, message_id)
+) STRICT;
+CREATE INDEX IF NOT EXISTS message_favorites_by_user ON message_favorites(user_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS conversation_preferences (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  alias TEXT NOT NULL DEFAULT '',
+  notifications_enabled INTEGER NOT NULL DEFAULT 1 CHECK(notifications_enabled IN (0,1)),
+  is_deleted INTEGER NOT NULL DEFAULT 0 CHECK(is_deleted IN (0,1)),
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY(user_id, conversation_id)
+) STRICT;
+CREATE TABLE IF NOT EXISTS blocked_contacts (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  contact_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY(user_id, contact_id),
+  CHECK(user_id <> contact_id)
+) STRICT;`);
 const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 function uniqueFriendCode() {
   for (let i = 0; i < 80; i++) {
@@ -384,8 +409,20 @@ function canReadConversation(userId, id) {
   return !!db.prepare('SELECT id FROM conversations WHERE id = ? AND (user_a = ? OR user_b = ?)')
     .get(id, userId, userId);
 }
-function toMessage(row) {
+function toMessage(row, userId) {
   const message = unpackStoredMessage(row.encrypted_body);
+  let replyTo = null;
+  if (row.reply_to_id) {
+    const source = db.prepare(`SELECT id,conversation_id,sender_id,encrypted_body FROM messages WHERE id=?
+      AND (? IS NULL OR NOT EXISTS(SELECT 1 FROM message_hides h WHERE h.message_id=messages.id AND h.user_id=?))`).get(row.reply_to_id,userId ?? null,userId ?? null);
+    if (source && source.conversation_id === row.conversation_id) {
+      const original = unpackStoredMessage(source.encrypted_body);
+      replyTo = { id: source.id, senderId: source.sender_id, kind: original.kind, preview: previewMessage(original).slice(0, 180) };
+    }
+  }
+  const isFavorite = Number.isSafeInteger(userId)
+    ? !!db.prepare('SELECT 1 FROM message_favorites WHERE user_id=? AND message_id=?').get(userId, row.id)
+    : false;
   return {
     id: row.id,
     conversationId: row.conversation_id,
@@ -397,6 +434,9 @@ function toMessage(row) {
     preview: previewMessage(message),
     createdAt: row.created_at,
     revision: row.revision,
+    replyTo,
+    forwarded: !!row.forwarded_from,
+    isFavorite,
   };
 }
 const streams = new Map();
@@ -489,6 +529,23 @@ const server = http.createServer(async (req, res) => {
         }
         return json(res,200,{user:updated});
       }
+      if (method === 'GET' && url.pathname === '/api/favorites') {
+        const rows = db.prepare(`SELECT m.*, f.created_at AS favorite_created_at, c.created_at AS conversation_created_at,
+            u.id AS partner_id, u.name AS partner_name, u.email AS partner_email, u.friend_code AS partner_code,
+            u.avatar AS partner_avatar, u.bio AS partner_bio, COALESCE(cp.alias,'') AS contact_alias
+          FROM message_favorites f
+          JOIN messages m ON m.id=f.message_id
+          JOIN conversations c ON c.id=m.conversation_id
+          JOIN users u ON u.id=CASE WHEN c.user_a=? THEN c.user_b ELSE c.user_a END
+          LEFT JOIN conversation_preferences cp ON cp.user_id=? AND cp.conversation_id=c.id
+          WHERE f.user_id=? AND (c.user_a=? OR c.user_b=?)
+          ORDER BY f.created_at DESC LIMIT 100`).all(user.id,user.id,user.id,user.id,user.id);
+        return json(res,200,{favorites:rows.map(row=>({
+          message:toMessage(row,user.id), savedAt:row.favorite_created_at, conversationId:row.conversation_id,
+          partner:{id:row.partner_id,name:row.contact_alias||row.partner_name,realName:row.partner_name,email:row.partner_email,
+            friendCode:row.partner_code,avatar:row.partner_avatar||'',bio:row.partner_bio||''},
+        }))});
+      }
       if (method === 'GET' && url.pathname === '/api/chat-requests') {
         const incoming = db.prepare(`SELECT r.id,r.status,r.created_at, u.id AS userId,u.name,u.friend_code AS friendCode,u.bio,u.avatar
           FROM chat_requests r JOIN users u ON u.id=r.requester_id WHERE r.recipient_id=? AND r.status='pending' ORDER BY r.id DESC`).all(user.id);
@@ -537,27 +594,82 @@ const server = http.createServer(async (req, res) => {
         });
         return;
       }
+      const preferenceMatch = url.pathname.match(/^\/api\/conversations\/(\d+)\/preferences$/);
+      if (preferenceMatch && method === 'PUT') {
+        const conversationId=Number(preferenceMatch[1]);
+        if (!canReadConversation(user.id,conversationId)) return fail(res,404,'Conversa não encontrada.');
+        const data=await readJson(req);
+        const alias=String(data.alias??'').trim().normalize('NFC');
+        if ([...alias].length>40) return fail(res,400,'O apelido deve ter até 40 caracteres.');
+        if (typeof data.notificationsEnabled!=='boolean') return fail(res,400,'Escolha se as notificações estarão ativadas.');
+        db.prepare(`INSERT INTO conversation_preferences(user_id,conversation_id,alias,notifications_enabled,is_deleted,updated_at)
+          VALUES(?,?,?,?,0,?) ON CONFLICT(user_id,conversation_id) DO UPDATE SET alias=excluded.alias,
+          notifications_enabled=excluded.notifications_enabled,is_deleted=0,updated_at=excluded.updated_at`)
+          .run(user.id,conversationId,alias,data.notificationsEnabled?1:0,new Date().toISOString());
+        broadcast(user.id,{conversationId,preferencesUpdated:true});
+        return json(res,200,{ok:true});
+      }
+      const clearConversationMatch=url.pathname.match(/^\/api\/conversations\/(\d+)\/clear$/);
+      if (clearConversationMatch && method==='POST') {
+        const conversationId=Number(clearConversationMatch[1]);
+        if (!canReadConversation(user.id,conversationId)) return fail(res,404,'Conversa não encontrada.');
+        db.prepare(`INSERT OR IGNORE INTO message_hides(user_id,message_id)
+          SELECT ?,id FROM messages WHERE conversation_id=?`).run(user.id,conversationId);
+        broadcast(user.id,{conversationId,conversationCleared:true});
+        return json(res,200,{ok:true});
+      }
+      const blockMatch=url.pathname.match(/^\/api\/conversations\/(\d+)\/(block|unblock)$/);
+      if (blockMatch && method==='POST') {
+        const conversationId=Number(blockMatch[1]);
+        const conversation=db.prepare('SELECT user_a,user_b FROM conversations WHERE id=? AND (user_a=? OR user_b=?)').get(conversationId,user.id,user.id);
+        if (!conversation) return fail(res,404,'Conversa não encontrada.');
+        const partnerId=conversation.user_a===user.id?conversation.user_b:conversation.user_a;
+        if (blockMatch[2]==='block') db.prepare('INSERT OR IGNORE INTO blocked_contacts(user_id,contact_id,created_at) VALUES(?,?,?)').run(user.id,partnerId,new Date().toISOString());
+        else db.prepare('DELETE FROM blocked_contacts WHERE user_id=? AND contact_id=?').run(user.id,partnerId);
+        broadcast(user.id,{conversationId,blockUpdated:true});broadcast(partnerId,{conversationId,blockUpdated:true});
+        return json(res,200,{ok:true,blocked:blockMatch[2]==='block'});
+      }
+      const deleteContactMatch=url.pathname.match(/^\/api\/conversations\/(\d+)\/contact$/);
+      if (deleteContactMatch && method==='DELETE') {
+        const conversationId=Number(deleteContactMatch[1]);
+        if (!canReadConversation(user.id,conversationId)) return fail(res,404,'Conversa não encontrada.');
+        db.prepare(`INSERT INTO conversation_preferences(user_id,conversation_id,alias,notifications_enabled,is_deleted,updated_at)
+          VALUES(?,?, '',1,1,?) ON CONFLICT(user_id,conversation_id) DO UPDATE SET is_deleted=1,updated_at=excluded.updated_at`)
+          .run(user.id,conversationId,new Date().toISOString());
+        broadcast(user.id,{conversationId,contactDeleted:true});
+        return json(res,200,{ok:true});
+      }
       if (method === 'GET' && url.pathname === '/api/conversations') {
         const rows = db.prepare(`SELECT c.id, c.created_at, u.id AS partner_id, u.name AS partner_name,
-           u.email AS partner_email, u.avatar AS partner_avatar, u.bio AS partner_bio, m.id AS message_id, m.encrypted_body, m.created_at AS last_message_at
+           u.email AS partner_email, u.avatar AS partner_avatar, u.bio AS partner_bio,
+           COALESCE(cp.alias,'') AS contact_alias, COALESCE(cp.notifications_enabled,1) AS notifications_enabled,
+           EXISTS(SELECT 1 FROM blocked_contacts b WHERE b.user_id=? AND b.contact_id=u.id) AS blocked_by_me,
+           EXISTS(SELECT 1 FROM blocked_contacts b WHERE b.user_id=u.id AND b.contact_id=?) AS blocked_by_partner,
+           m.id AS message_id, m.sender_id AS last_sender_id, m.encrypted_body, m.created_at AS last_message_at
            FROM conversations c
            JOIN users u ON u.id = CASE WHEN c.user_a = ? THEN c.user_b ELSE c.user_a END
+           LEFT JOIN conversation_preferences cp ON cp.conversation_id=c.id AND cp.user_id=?
            LEFT JOIN messages m ON m.id = (
              SELECT id FROM messages WHERE conversation_id = c.id
                AND NOT EXISTS (SELECT 1 FROM message_hides h WHERE h.message_id = messages.id AND h.user_id = ?)
              ORDER BY id DESC LIMIT 1
            )
-           WHERE c.user_a = ? OR c.user_b = ?
-           ORDER BY COALESCE(m.id, 0) DESC, c.id DESC`).all(user.id, user.id, user.id, user.id);
+           WHERE (c.user_a = ? OR c.user_b = ?) AND COALESCE(cp.is_deleted,0)=0
+           ORDER BY COALESCE(m.id, 0) DESC, c.id DESC`).all(user.id,user.id,user.id,user.id,user.id,user.id,user.id);
         return json(res, 200, {
           conversations: rows.map(row => {
             const parsed = row.message_id ? unpackStoredMessage(row.encrypted_body) : null;
             return {
               id: row.id,
               createdAt: row.created_at,
-              partner: { id: row.partner_id, name: row.partner_name, email: row.partner_email, avatar: row.partner_avatar || '', bio: row.partner_bio || '' },
+              notificationsEnabled: !!row.notifications_enabled,
+              blockedByMe: !!row.blocked_by_me,
+              blockedByPartner: !!row.blocked_by_partner,
+              partner: { id: row.partner_id, name: row.contact_alias || row.partner_name, realName: row.partner_name,
+                alias: row.contact_alias || '', email: row.partner_email, friendCode: db.prepare('SELECT friend_code FROM users WHERE id=?').get(row.partner_id)?.friend_code || '',
+                avatar: row.partner_avatar || '', bio: row.partner_bio || '' },
               lastMessage: row.message_id ? {
-                id: row.message_id,
+                id: row.message_id, senderId: row.last_sender_id,
                 kind: parsed.kind,
                 ...(parsed.kind === 'text' ? { ciphertext: parsed.ciphertext } : {}),
                 preview: previewMessage(parsed),
@@ -578,7 +690,11 @@ const server = http.createServer(async (req, res) => {
         if (!partner) return fail(res,404,'Usuário não encontrado.');
         if (partner.id === user.id) return fail(res,400,'Você não pode conversar consigo mesmo.');
         const existing = findConversation(user.id,partner.id);
-        if (existing) return json(res,200,{conversationId:existing.id,status:'connected'});
+        if (existing) {
+          db.prepare('UPDATE conversation_preferences SET is_deleted=0,updated_at=? WHERE user_id=? AND conversation_id=?')
+            .run(new Date().toISOString(),user.id,existing.id);
+          return json(res,200,{conversationId:existing.id,status:'connected'});
+        }
         if (partner.privacy_mode === 'approval') {
           // Sem criar conversa nem permitir mensagens antes da aprovação.
           const prior = db.prepare('SELECT id,status FROM chat_requests WHERE requester_id=? AND recipient_id=?').get(user.id,partner.id);
@@ -604,16 +720,35 @@ const server = http.createServer(async (req, res) => {
         const conversationId = Number(match[1]);
         if (!canReadConversation(user.id, conversationId)) return fail(res, 404, 'Conversa não encontrada.');
         if (method === 'GET') {
-          const rows = db.prepare(`SELECT * FROM (
-            SELECT id, conversation_id, sender_id, encrypted_body, created_at, revision
-            FROM messages WHERE conversation_id = ?
-              AND NOT EXISTS (SELECT 1 FROM message_hides h WHERE h.message_id = messages.id AND h.user_id = ?)
-            ORDER BY id DESC LIMIT 100
-          ) ORDER BY id ASC`).all(conversationId, user.id);
-          return json(res, 200, { messages: rows.map(toMessage) });
+          const around=Number(url.searchParams.get('around'));
+          let rows;
+          if (Number.isSafeInteger(around)&&around>0) {
+            const target=db.prepare(`SELECT id FROM messages WHERE id=? AND conversation_id=?
+              AND NOT EXISTS(SELECT 1 FROM message_hides h WHERE h.message_id=messages.id AND h.user_id=?)`).get(around,conversationId,user.id);
+            if (!target) return fail(res,404,'Mensagem não encontrada nesta conversa.');
+            const before=db.prepare(`SELECT * FROM messages WHERE conversation_id=? AND id<=?
+              AND NOT EXISTS(SELECT 1 FROM message_hides h WHERE h.message_id=messages.id AND h.user_id=?)
+              ORDER BY id DESC LIMIT 50`).all(conversationId,around,user.id);
+            const after=db.prepare(`SELECT * FROM messages WHERE conversation_id=? AND id>?
+              AND NOT EXISTS(SELECT 1 FROM message_hides h WHERE h.message_id=messages.id AND h.user_id=?)
+              ORDER BY id ASC LIMIT 50`).all(conversationId,around,user.id);
+            rows=[...before.reverse(),...after];
+          } else {
+            rows = db.prepare(`SELECT * FROM (
+              SELECT * FROM messages WHERE conversation_id = ?
+                AND NOT EXISTS (SELECT 1 FROM message_hides h WHERE h.message_id = messages.id AND h.user_id = ?)
+              ORDER BY id DESC LIMIT 100
+            ) ORDER BY id ASC`).all(conversationId, user.id);
+          }
+          return json(res, 200, { messages: rows.map(row => toMessage(row,user.id)) });
         }
         if (method === 'POST') {
           const payload = await readJson(req);
+          const members = db.prepare('SELECT user_a,user_b FROM conversations WHERE id=?').get(conversationId);
+          const partnerId = members.user_a===user.id ? members.user_b : members.user_a;
+          const blocked = db.prepare('SELECT 1 FROM blocked_contacts WHERE (user_id=? AND contact_id=?) OR (user_id=? AND contact_id=?)')
+            .get(user.id,partnerId,partnerId,user.id);
+          if (blocked) return fail(res,403,'Esta conversa está bloqueada. Desbloqueie o contato para enviar mensagens.');
           const kind = ['image','audio','document','contact','text'].includes(payload.kind) ? payload.kind : payload.kind == null ? 'text' : null;
           if (!kind) return fail(res, 400, 'Tipo de mensagem inválido.');
           let message;
@@ -637,11 +772,19 @@ const server = http.createServer(async (req, res) => {
             }
             message = { kind: 'text', ciphertext };
           }
+          let replyToId = null;
+          if (payload.replyToId !== undefined && payload.replyToId !== null && payload.replyToId !== '') {
+            replyToId = Number(payload.replyToId);
+            if (!Number.isSafeInteger(replyToId) || !db.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(replyToId,conversationId)) {
+              return fail(res,400,'A mensagem respondida não existe mais nesta conversa.');
+            }
+          }
           const encrypted = packStoredMessage(message);
           const createdAt = new Date().toISOString();
-          const result = db.prepare(`INSERT INTO messages (conversation_id,sender_id,encrypted_body,created_at)
-            VALUES (?,?,?,?)`).run(conversationId, user.id, encrypted, createdAt);
-          const members = db.prepare('SELECT user_a,user_b FROM conversations WHERE id = ?').get(conversationId);
+          const result = db.prepare(`INSERT INTO messages (conversation_id,sender_id,encrypted_body,created_at,reply_to_id)
+            VALUES (?,?,?,?,?)`).run(conversationId, user.id, encrypted, createdAt, replyToId);
+          db.prepare('UPDATE conversation_preferences SET is_deleted=0,updated_at=? WHERE user_id=? AND conversation_id=?')
+            .run(createdAt,partnerId,conversationId);
           broadcast(members.user_a, { conversationId });
           broadcast(members.user_b, { conversationId });
           return json(res, 201, {
@@ -656,6 +799,10 @@ const server = http.createServer(async (req, res) => {
               preview: previewMessage(message),
               createdAt,
               revision: 0,
+              replyToId,
+              replyTo: replyToId ? (() => { const source=db.prepare('SELECT id,sender_id,encrypted_body FROM messages WHERE id=?').get(replyToId); const original=unpackStoredMessage(source.encrypted_body); return {id:source.id,senderId:source.sender_id,kind:original.kind,preview:previewMessage(original).slice(0,180)}; })() : null,
+              forwarded: false,
+              isFavorite: false,
             },
           });
         }
@@ -671,6 +818,40 @@ const server = http.createServer(async (req, res) => {
         db.prepare('INSERT OR IGNORE INTO message_hides(user_id,message_id) VALUES(?,?)').run(user.id,messageId);
         broadcast(user.id,{conversationId});
         return json(res,200,{ok:true});
+      }
+      const favoriteMatch=url.pathname.match(/^\/api\/conversations\/(\d+)\/messages\/(\d+)\/favorite$/);
+      if (favoriteMatch && method==='POST') {
+        const conversationId=Number(favoriteMatch[1]),messageId=Number(favoriteMatch[2]);
+        if (!canReadConversation(user.id,conversationId)) return fail(res,404,'Conversa não encontrada.');
+        if (!db.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(messageId,conversationId)) return fail(res,404,'Mensagem não encontrada.');
+        const data=await readJson(req);
+        if (typeof data.favorite!=='boolean') return fail(res,400,'Informe se a mensagem será favorita.');
+        if (data.favorite) db.prepare('INSERT OR IGNORE INTO message_favorites(user_id,message_id,created_at) VALUES(?,?,?)').run(user.id,messageId,new Date().toISOString());
+        else db.prepare('DELETE FROM message_favorites WHERE user_id=? AND message_id=?').run(user.id,messageId);
+        broadcast(user.id,{conversationId,favoritesUpdated:true});
+        return json(res,200,{ok:true,favorite:data.favorite});
+      }
+      const forwardMatch=url.pathname.match(/^\/api\/conversations\/(\d+)\/messages\/(\d+)\/forward$/);
+      if (forwardMatch && method==='POST') {
+        const sourceConversationId=Number(forwardMatch[1]),messageId=Number(forwardMatch[2]);
+        if (!canReadConversation(user.id,sourceConversationId)) return fail(res,404,'Conversa original não encontrada.');
+        const data=await readJson(req);const targetConversationId=Number(data.targetConversationId);
+        if (!Number.isSafeInteger(targetConversationId)||!canReadConversation(user.id,targetConversationId)) return fail(res,404,'Conversa de destino não encontrada.');
+        if (targetConversationId===sourceConversationId) return fail(res,400,'Escolha outra conversa para encaminhar.');
+        const original=db.prepare('SELECT * FROM messages WHERE id=? AND conversation_id=?').get(messageId,sourceConversationId);
+        if (!original) return fail(res,404,'Mensagem original não encontrada.');
+        const target=db.prepare('SELECT user_a,user_b FROM conversations WHERE id=?').get(targetConversationId);
+        const targetPartnerId=target.user_a===user.id?target.user_b:target.user_a;
+        const blocked=db.prepare('SELECT 1 FROM blocked_contacts WHERE (user_id=? AND contact_id=?) OR (user_id=? AND contact_id=?)')
+          .get(user.id,targetPartnerId,targetPartnerId,user.id);
+        if (blocked) return fail(res,403,'A conversa de destino está bloqueada.');
+        const createdAt=new Date().toISOString();
+        const result=db.prepare(`INSERT INTO messages(conversation_id,sender_id,encrypted_body,created_at,revision,reply_to_id,forwarded_from)
+          VALUES(?,?,?,?,0,NULL,?)`).run(targetConversationId,user.id,original.encrypted_body,createdAt,messageId);
+        db.prepare('UPDATE conversation_preferences SET is_deleted=0,updated_at=? WHERE user_id=? AND conversation_id=?')
+          .run(createdAt,targetPartnerId,targetConversationId);
+        broadcast(target.user_a,{conversationId:targetConversationId});broadcast(target.user_b,{conversationId:targetConversationId});
+        return json(res,201,{ok:true,messageId:Number(result.lastInsertRowid),targetConversationId});
       }
       // Alterar/apagar somente as próprias mensagens. Sem marcador ou aviso no chat.
       const ownMessageMatch = url.pathname.match(/^\/api\/conversations\/(\d+)\/messages\/(\d+)$/);

@@ -86,7 +86,10 @@ test('mensagem de voz no mesmo histórico: autenticação, destinatário e segur
     assert.equal(voiceModule.status,200);
     assert.match(await voiceModule.text(),/MediaRecorder/);
     const page=await (await fetch(server.base)).text();
-    for(const id of ['voiceButton','voiceStopButton','voiceDiscardButton','voiceSendButton','voicePreview']) assert.ok(page.includes(`id="${id}"`));
+    for(const id of ['voiceButton','voiceStopButton','voiceDiscardButton']) assert.ok(page.includes(`id="${id}"`));
+    assert.ok(!page.includes('voicePreview'));
+    assert.ok(!page.includes('voiceSendButton'));
+    assert.match(page,/Parar e enviar/);
   }finally{
     if(server?.child&&server.child.exitCode===null){server.child.kill('SIGTERM');await once(server.child,'exit');}
     await rm(dir,{recursive:true,force:true});

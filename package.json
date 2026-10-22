@@ -1,9 +1,9 @@
 {
   "name": "pegasus-messenger",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
-  "description": "Pegasus: mensagens de voz com gravação no navegador, pré-escuta, envio e reprodução em tempo real",
+  "description": "Pegasus: respostas, favoritos, encaminhamento, seleção múltipla e gestão de contatos",
   "engines": {
     "node": ">=22.13.0"
   },
