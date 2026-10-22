@@ -1,9 +1,9 @@
 {
   "name": "pegasus-messenger",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
-  "description": "Pegasus: menu único de anexos para imagem, GIF, áudio, documentos e contatos; favicon circular e constelação limpa",
+  "description": "Pegasus: mensagens de voz com gravação no navegador, pré-escuta, envio e reprodução em tempo real",
   "engines": {
     "node": ">=22.13.0"
   },

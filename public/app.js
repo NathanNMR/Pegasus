@@ -1,5 +1,6 @@
 import { encodePegasus, decodePegasus } from './cipher.js';
 import { setupImageEditor } from './editor.js';
+import { setupVoiceRecorder } from './voice-recorder.js';
 
 const $ = selector => document.querySelector(selector);
 const state = {
@@ -64,7 +65,7 @@ function previewMessage(message) {
   if (!message) return 'Diga olá! ✨';
   if (message.preview) return message.preview;
   if (message.kind === 'image') return '🖼️ Imagem';
-  if (message.kind === 'audio') return '🎵 Áudio';
+  if (message.kind === 'audio') return message.file?.voice ? '🎤 Mensagem de voz' : '🎵 Áudio';
   if (message.kind === 'document') return '📄 Documento';
   if (message.kind === 'contact') return `👤 ${message.contact?.name || 'Contato'}`;
   return safeDecode(message.ciphertext).replace(/\s+/g, ' ');
@@ -117,6 +118,7 @@ function enterApp(user) {
 }
 function signOut(notify = true) {
   hideMessageContextMenu();
+  voiceRecorder?.cancel();
   state.events?.close();
   state.events = null;
   state.user = null;
@@ -179,6 +181,7 @@ function renderConversations() {
   }
 }
 async function selectConversation(id) {
+  voiceRecorder?.cancel();
   hideMessageContextMenu();
   if (!state.user) return;
   state.selectedId = id;
@@ -317,6 +320,7 @@ function renderMessages() {
       figure.append(img);
       bubble.append(figure);
     } else if (message.kind === 'audio') {
+      if (message.file?.voice) bubble.append(text('span', 'voice-message-tag', '🎤 Mensagem de voz'));
       const sound = document.createElement('audio');
       sound.controls = true;
       sound.preload = 'none';
@@ -762,7 +766,24 @@ $('#messageInput').addEventListener('input', event => {
   event.target.style.height = 'auto';
   event.target.style.height = `${Math.min(140, event.target.scrollHeight)}px`;
 });
-$('#backButton').addEventListener('click', () => $('#chatView').classList.remove('chat-open'));
+const voiceRecorder = setupVoiceRecorder({
+  getConversationId: () => state.user ? state.selectedId : null,
+  canStart: () => !state.draftImage && !state.draftAttachment,
+  onError: message => showToast(message, true),
+  onSend: async ({conversationId, file}) => {
+    await api(`/api/conversations/${conversationId}/messages`, {
+      method: 'POST', body: JSON.stringify({kind: 'audio', file}),
+    });
+    await refreshAll();
+    $('#messageList').scrollTop = $('#messageList').scrollHeight;
+  },
+});
+window.addEventListener('pagehide', () => voiceRecorder.cancel());
+
+$('#backButton').addEventListener('click', () => {
+  voiceRecorder.cancel();
+  $('#chatView').classList.remove('chat-open');
+});
 
 (async function startup() {
   try {

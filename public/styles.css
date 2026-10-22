@@ -539,3 +539,26 @@ kbd { font: inherit; border: 1px solid rgba(255,255,255,.13); padding: 2px 4px; 
 .attachment-preview img { width:100%; height:100%; object-fit:cover; }
 .composer-hint { justify-content:flex-end; }
 @media(max-width:720px){ .attachment-popover { left:12px; bottom:calc(100% - 7px); } }
+
+/* Pegasus v0.7 — mensagens de voz */
+.voice-button {display:grid;place-items:center;width:43px;height:43px;flex:0 0 auto;border-radius:13px;border:1px solid rgba(160,212,255,.26);background:rgba(103,165,229,.12);color:#ddf0ff;transition:background .18s,transform .18s}
+.voice-button:hover:not(:disabled) {background:rgba(105,174,245,.26);transform:translateY(-1px)}
+.voice-button:disabled {opacity:.5}
+.voice-button.is-recording {color:#ffd5d5;border-color:#ff7c7c;background:rgba(195,57,81,.18)}
+.voice-button svg {width:20px;height:20px;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.voice-panel {border-radius:16px;padding:13px 16px;margin-bottom:10px;display:flex;flex-direction:column;gap:10px;box-shadow:0 12px 35px rgba(0,0,0,.15)}
+.voice-status-line {display:flex;gap:10px;align-items:center;color:#e4f4ff;font-size:12px}
+.voice-status-line strong {font-weight:600}
+.voice-status-line time {margin-left:auto;font-variant-numeric:tabular-nums;color:#b6d1ee}
+.voice-record-dot {width:10px;height:10px;flex:0 0 auto;border-radius:100%;background:#ff5873;box-shadow:0 0 0 3px rgba(255,88,115,.18);animation:voice-pulse 1.2s infinite}
+@keyframes voice-pulse {50%{opacity:.45;transform:scale(.8)}}
+.voice-preview {width:100%;height:42px;max-width:420px;align-self:center;accent-color:#6ab4f1}
+.voice-actions {display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.voice-actions button {border-radius:11px;padding:8px 15px;border:1px solid rgba(203,232,255,.18);font-size:12px;font-weight:650}
+.voice-action-cancel {color:#d3e7fc;background:rgba(255,255,255,.045)}
+.voice-action-stop {color:#ffe7e7;background:rgba(178,64,76,.19)}
+.voice-action-send {color:#061b36;background:linear-gradient(125deg,#eefaff,#88c8ff)}
+.message-audio {max-width:min(280px,100%);width:260px;height:46px;display:block}
+.voice-message-tag {font-size:10px;color:#cfe8ff;display:block;margin-bottom:8px;letter-spacing:.02em}
+@media(max-width:720px) {.voice-button{width:39px;height:43px}.composer{gap:6px}.voice-panel{padding:12px}}
+@media(prefers-reduced-motion:reduce){.voice-record-dot{animation:none}}

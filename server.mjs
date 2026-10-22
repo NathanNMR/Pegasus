@@ -164,7 +164,7 @@ function unpackStoredMessage(stored) {
 function previewMessage(message) {
   if (!message) return null;
   if (message.kind === 'image') return message.image?.mime === 'image/gif' ? '🎞️ GIF' : '🖼️ Imagem';
-  if (message.kind === 'audio') return '🎵 Áudio';
+  if (message.kind === 'audio') return message.file?.voice ? '🎤 Mensagem de voz' : '🎵 Áudio';
   if (message.kind === 'document') return '📄 Documento';
   if (message.kind === 'contact') return `👤 ${message.contact.name}`;
   try { return decodePegasus(message.ciphertext).replace(/\s+/g, ' ').trim() || 'Mensagem'; }
@@ -256,7 +256,8 @@ function validateFilePayload(input, kind) {
     ods: () => bytes.toString('ascii',0,2)==='PK',
   }[extension];
   if (!signature()) throw Object.assign(new Error('Assinatura do arquivo inválida.'), {status: 400});
-  return { name, mime: expected, dataUrl: `data:${expected};base64,${base64}`, size: bytes.length };
+  return { name, mime: expected, dataUrl: `data:${expected};base64,${base64}`, size: bytes.length,
+    ...(kind === 'audio' && input.voice === true ? {voice: true} : {}) };
 }
 function validateSharedContact(userId, contactId) {
   if (!Number.isSafeInteger(contactId) || contactId <= 0) {
@@ -406,6 +407,7 @@ function broadcast(userId, payload) {
 }
 const staticFiles = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
+  ['/voice-recorder.js', ['voice-recorder.js', 'text/javascript; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/cipher.js', ['cipher.js', 'text/javascript; charset=utf-8']],

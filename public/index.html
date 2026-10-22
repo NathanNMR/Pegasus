@@ -90,6 +90,15 @@
               <div id="shareContactsList" class="contact-picker-list"></div>
             </div>
           </div>
+          <div id="voicePanel" class="voice-panel glass-inset" role="group" aria-label="Gravar mensagem de voz" hidden>
+            <div class="voice-status-line"><span id="voiceIndicator" class="voice-record-dot" aria-hidden="true" hidden></span><strong id="voiceStatus">Gravando mensagem de voz</strong><time id="voiceTimer">00:00</time></div>
+            <audio id="voicePreview" class="voice-preview" controls preload="metadata" aria-label="Pré-escutar mensagem de voz" hidden></audio>
+            <div class="voice-actions">
+              <button id="voiceDiscardButton" class="voice-action-cancel" type="button">Descartar</button>
+              <button id="voiceStopButton" class="voice-action-stop" type="button" hidden>■ Parar gravação</button>
+              <button id="voiceSendButton" class="voice-action-send" type="button" hidden>➤ Enviar áudio</button>
+            </div>
+          </div>
           <form id="messageForm" class="composer glass-inset">
             <input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
             <input id="gifInput" type="file" accept="image/gif" hidden />
@@ -99,6 +108,9 @@
               <svg viewBox="0 0 24 24" fill="none"><path d="M12 4v16M4 12h16"/></svg>
             </button>
             <textarea id="messageInput" name="message" rows="1" maxlength="4000" placeholder="Escreva sua mensagem..." aria-label="Sua mensagem"></textarea>
+            <button id="voiceButton" type="button" class="voice-button" title="Gravar mensagem de voz" aria-label="Gravar mensagem de voz" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="2.5" width="6" height="13" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5M8 21.5h8"/></svg>
+            </button>
             <button id="sendButton" type="submit" class="send-button" title="Enviar mensagem" aria-label="Enviar mensagem"><svg viewBox="0 0 24 24" fill="none"><path d="M4 12 20 4l-5.8 16-3.1-7.1L4 12Z"/><path d="M11.1 12.9 20 4"/></svg></button>
           </form>
           <div class="composer-hint"><span><kbd>Enter</kbd> para enviar · <kbd>Shift + Enter</kbd> para pular linha</span></div>
