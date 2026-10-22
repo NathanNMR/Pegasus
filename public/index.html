@@ -10,31 +10,72 @@
   <title>Pegasus — Mensagens</title>
   
   <style>
-    /* CORREÇÃO DE SOBREPOSIÇÃO DE ÍCONES (Imagens Reportadas) */
-    .inbox-heading {
-      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; overflow: hidden;
+    /* 1. CORREÇÃO DEFINITIVA DE SOBREPOSIÇÃO (Impede textos de esmagarem os botões) */
+    .inbox-heading, .chat-header {
+      display: flex !important;
+      flex-wrap: nowrap !important;
+      align-items: center !important;
+      width: 100% !important;
+      overflow: hidden !important;
+      gap: 8px !important;
     }
-    .inbox-heading > div { flex: 1; min-width: 120px; overflow: hidden; }
-    .inbox-heading h2 { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .chat-header {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: nowrap; overflow: hidden;
+    /* Força a área de texto a encolher e não ultrapassar o espaço disponível */
+    .inbox-heading > div:first-child, .contact-header-button {
+      flex: 1 1 0 !important; 
+      min-width: 0 !important;
+      overflow: hidden !important;
     }
-    .contact-header-button { flex: 1; min-width: 0; overflow: hidden; text-align: left; }
-    .contact-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; flex-direction: column; }
-    .header-action { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .contact-header-button {
+      display: flex !important;
+      align-items: center !important;
+    }
+    .contact-meta {
+      flex: 1 1 0 !important;
+      min-width: 0 !important;
+      overflow: hidden !important;
+      display: flex !important;
+      flex-direction: column !important;
+    }
+    /* Aplica as reticências (...) caso o texto seja muito grande */
+    .inbox-heading h2, .contact-meta strong, .contact-meta span {
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      display: block !important;
+      margin: 0 !important;
+    }
+    /* Protege o tamanho dos botões */
+    .inbox-heading button, .header-action {
+      flex-shrink: 0 !important;
+    }
+    .header-action {
+      display: flex !important;
+      align-items: center !important;
+      gap: 4px !important;
+    }
 
-    /* GAVETA DE REAÇÕES (Substituindo o visual de janela cheia) */
+    /* 2. ESTILIZAÇÃO NATIVA DOS MODAIS (Fundo escuro e posicionamento) */
+    dialog::backdrop {
+      background: rgba(4, 10, 24, 0.65) !important;
+      backdrop-filter: blur(4px) !important;
+    }
+    dialog {
+      margin: auto; /* Centraliza modais convencionais */
+      z-index: 1000;
+    }
+    
+    /* 3. GAVETA DE REAÇÕES (Fica fixa na base da tela) */
     #reactionDialog {
-      margin: auto auto 0 auto !important; /* Fixa na base */
-      max-width: 100%;
-      width: 100%;
+      margin: auto auto 0 auto !important;
+      width: 100% !important;
+      max-width: 500px !important; /* Limita a largura em telas grandes */
       border-radius: 20px 20px 0 0 !important;
-      padding-bottom: max(20px, env(safe-area-inset-bottom));
-      animation: slideUpDrawer 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+      padding-bottom: max(20px, env(safe-area-inset-bottom)) !important;
+      transform: translateY(100%);
+      animation: slideUpDrawer 0.3s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
     }
     @keyframes slideUpDrawer {
-      from { transform: translateY(100%); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
+      to { transform: translateY(0); }
     }
   </style>
 
@@ -235,7 +276,7 @@
     </div>
   </dialog>
 
-  <!-- Gaveta adaptada via CSS em #reactionDialog -->
+  <!-- Gaveta de Reações centralizada e adaptada -->
   <dialog id="reactionDialog" class="mini-modal glass" aria-label="Reagir à mensagem">
     <div class="mini-modal-content">
       <header class="profile-heading">

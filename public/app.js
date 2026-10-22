@@ -55,7 +55,7 @@ function customConfirm(title, message) {
     acceptBtn.onclick = () => { cleanup(); resolve(true); };
     cancelBtn.onclick = () => { cleanup(); resolve(false); };
     
-    dialog.showModal();
+    dialog.showModal(); // Força abertura como Modal Nativo
   });
 }
 
@@ -75,7 +75,7 @@ function customReact() {
       btn.onclick = () => { cleanup(); resolve(btn.dataset.emoji); };
     });
     
-    dialog.showModal();
+    dialog.showModal(); // Força abertura como Modal Nativo
   });
 }
 
@@ -217,7 +217,6 @@ function signOut(notify = true) {
   if (notify) showToast('Você saiu do Pegasus.');
 }
 
-// Menu de contexto para contatos na barra lateral
 function showContactContextMenu(conversation, x, y) {
   const menu = $('#messageContextMenu');
   menu.replaceChildren();
@@ -308,7 +307,6 @@ function renderConversations() {
     item.classList.toggle('selected', conversation.id === state.selectedId);
     item.addEventListener('click', () => selectConversation(conversation.id));
     
-    // Vinculando o evento de botão direito (contextmenu) no contato
     item.addEventListener('contextmenu', (event) => {
       event.preventDefault();
       showContactContextMenu(conversation, event.clientX, event.clientY);
