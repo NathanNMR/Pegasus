@@ -38,7 +38,6 @@ function showToast(message, isError = false) {
   toastTimer = setTimeout(() => { element.hidden = true; }, 4200);
 }
 
-// Lógica dos Novos Modais customizados para substituir window.confirm e window.prompt
 function customConfirm(title, message) {
   return new Promise(resolve => {
     const dialog = $('#customConfirmDialog');
@@ -217,6 +216,49 @@ function signOut(notify = true) {
   clearDraftImage(false);
   if (notify) showToast('Você saiu do Pegasus.');
 }
+
+// Menu de contexto para contatos na barra lateral
+function showContactContextMenu(conversation, x, y) {
+  const menu = $('#messageContextMenu');
+  menu.replaceChildren();
+  
+  function option(label, action, destructive = false) {
+    const button = text('button', destructive ? 'destructive' : '', label);
+    button.type = 'button';
+    button.addEventListener('click', async () => {
+      hideMessageContextMenu();
+      try { await action(); } catch (error) { showToast(error.message, true); }
+    });
+    menu.append(button);
+  }
+
+  option('Ver Detalhes do Contato', async () => {
+    await selectConversation(conversation.id);
+    openContactDetails();
+  });
+  
+  option(conversation.archived ? 'Desarquivar Conversa' : 'Arquivar Conversa', async () => {
+    await api(`/api/conversations/${conversation.id}/preferences`, {method:'PUT',body:JSON.stringify({archived:!conversation.archived})});
+    await refreshAll();
+    showToast(conversation.archived ? 'Conversa desarquivada.' : 'Conversa arquivada.');
+  });
+
+  option('Excluir Contato', async () => {
+    if (!await customConfirm('Excluir contato', `Excluir ${conversation.partner.name} e ocultar conversa?`)) return;
+    await api(`/api/conversations/${conversation.id}/contact`, {method:'DELETE'});
+    if (state.selectedId === conversation.id) {
+      state.selectedId = null; state.currentConversation = null; state.currentPartner = null; state.messages = [];
+      $('#conversationView').hidden=true; $('#welcomeScreen').hidden=false; $('#chatView').classList.remove('chat-open');
+    }
+    await refreshAll();
+    showToast('Contato excluído.');
+  }, true);
+
+  menu.hidden = false;
+  menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - menu.offsetWidth - 8))}px`;
+  menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - menu.offsetHeight - 8))}px`;
+}
+
 async function refreshAll() {
   if (!state.user) return;
   if (refreshing) { shouldRefreshAgain = true; return; }
@@ -265,6 +307,13 @@ function renderConversations() {
     item.className = 'conversation-item';
     item.classList.toggle('selected', conversation.id === state.selectedId);
     item.addEventListener('click', () => selectConversation(conversation.id));
+    
+    // Vinculando o evento de botão direito (contextmenu) no contato
+    item.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      showContactContextMenu(conversation, event.clientX, event.clientY);
+    });
+
     const avatar = text('div','contact-avatar','');
     setAvatar(avatar, conversation.partner);
     item.append(avatar);
@@ -605,7 +654,6 @@ function renderMessages() {
       showMessageContextMenu(message, event.clientX, event.clientY);
     });
     
-    // Adição de duplo clique para responder, similar ao Telegram
     bubble.addEventListener('dblclick', event => {
       if (!state.selectionMode && !event.target.closest('audio,a,button')) {
         event.preventDefault();

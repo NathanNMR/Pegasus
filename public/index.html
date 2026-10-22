@@ -8,6 +8,36 @@
   <link rel="icon" href="/favicon.png?v=9" type="image/png" />
   <link rel="stylesheet" href="/styles.css" />
   <title>Pegasus — Mensagens</title>
+  
+  <style>
+    /* CORREÇÃO DE SOBREPOSIÇÃO DE ÍCONES (Imagens Reportadas) */
+    .inbox-heading {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; overflow: hidden;
+    }
+    .inbox-heading > div { flex: 1; min-width: 120px; overflow: hidden; }
+    .inbox-heading h2 { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chat-header {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: nowrap; overflow: hidden;
+    }
+    .contact-header-button { flex: 1; min-width: 0; overflow: hidden; text-align: left; }
+    .contact-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; flex-direction: column; }
+    .header-action { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+    /* GAVETA DE REAÇÕES (Substituindo o visual de janela cheia) */
+    #reactionDialog {
+      margin: auto auto 0 auto !important; /* Fixa na base */
+      max-width: 100%;
+      width: 100%;
+      border-radius: 20px 20px 0 0 !important;
+      padding-bottom: max(20px, env(safe-area-inset-bottom));
+      animation: slideUpDrawer 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+    }
+    @keyframes slideUpDrawer {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+  </style>
+
   <script type="module" src="/app.js"></script>
 </head>
 <body>
@@ -189,7 +219,6 @@
     <div class="mini-modal-content"><header class="profile-heading"><div><span class="eyebrow">CONTATOS</span><h2>Solicitações</h2></div><button id="closeRequests" type="button" class="dialog-close-inline" aria-label="Fechar">×</button></header><p>Pessoas que querem iniciar uma conversa com você.</p><div id="requestsList" class="requests-list"></div><p id="requestsOutgoing" class="request-outgoing"></p></div>
   </dialog>
   
-  <!-- Novos modais que substituem as caixas de alerta do navegador e trazem o menu de Reações -->
   <dialog id="customConfirmDialog" class="mini-modal glass" aria-label="Confirmação do sistema">
     <div class="mini-modal-content">
       <header class="profile-heading">
@@ -206,6 +235,7 @@
     </div>
   </dialog>
 
+  <!-- Gaveta adaptada via CSS em #reactionDialog -->
   <dialog id="reactionDialog" class="mini-modal glass" aria-label="Reagir à mensagem">
     <div class="mini-modal-content">
       <header class="profile-heading">
