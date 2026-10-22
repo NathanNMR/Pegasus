@@ -38,45 +38,74 @@ function showToast(message, isError = false) {
   toastTimer = setTimeout(() => { element.hidden = true; }, 4200);
 }
 
-function customConfirm(title, message) {
+// Último ponto tocado/clicado: os popovers de confirmação e reação abrem ao lado dele.
+const lastPointer = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+document.addEventListener('pointerdown', event => { lastPointer.x = event.clientX; lastPointer.y = event.clientY; }, true);
+
+function placePopover(popover, anchor = lastPointer) {
+  popover.hidden = false;
+  const gap = 8;
+  const width = popover.offsetWidth;
+  const height = popover.offsetHeight;
+  const left = Math.max(gap, Math.min(anchor.x, window.innerWidth - width - gap));
+  let top = anchor.y + 6;
+  if (top + height > window.innerHeight - gap) top = anchor.y - height - 6;
+  popover.style.left = `${left}px`;
+  popover.style.top = `${Math.max(gap, top)}px`;
+}
+
+// Abre um popover não modal e resolve quando o usuário escolhe, clica fora, aperta Esc ou redimensiona.
+function openPopover(popover, onReady) {
   return new Promise(resolve => {
-    const dialog = $('#customConfirmDialog');
-    $('#customConfirmTitle').textContent = title;
-    $('#customConfirmMessage').textContent = message;
-    const acceptBtn = $('#customConfirmAccept');
-    const cancelBtn = $('#customConfirmCancel');
-    
-    const cleanup = () => {
-      dialog.close();
-      acceptBtn.onclick = null;
-      cancelBtn.onclick = null;
+    let done = false;
+    const finish = value => {
+      if (done) return;
+      done = true;
+      popover.hidden = true;
+      document.removeEventListener('pointerdown', onOutside, true);
+      document.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('resize', onResize);
+      resolve(value);
     };
-    
-    acceptBtn.onclick = () => { cleanup(); resolve(true); };
-    cancelBtn.onclick = () => { cleanup(); resolve(false); };
-    
-    dialog.showModal(); // Força abertura como Modal Nativo
+    const onOutside = event => { if (!popover.contains(event.target)) finish(null); };
+    const onKey = event => { if (event.key === 'Escape') { event.stopPropagation(); finish(null); } };
+    const onResize = () => finish(null);
+    onReady(finish);
+    // registra depois do clique atual para não fechar no mesmo gesto que abriu
+    setTimeout(() => {
+      if (done) return;
+      document.addEventListener('pointerdown', onOutside, true);
+      document.addEventListener('keydown', onKey, true);
+      window.addEventListener('resize', onResize);
+    }, 0);
   });
 }
 
-function customReact() {
-  return new Promise(resolve => {
-    const dialog = $('#reactionDialog');
-    const closeBtn = $('#closeReactionDialog');
-    const removeBtn = $('#removeReactionButton');
-    const grid = $('#reactionGrid');
-    
-    const cleanup = () => { dialog.close(); };
-    
-    closeBtn.onclick = () => { cleanup(); resolve(null); };
-    removeBtn.onclick = () => { cleanup(); resolve(''); };
-    
-    grid.querySelectorAll('button').forEach(btn => {
-      btn.onclick = () => { cleanup(); resolve(btn.dataset.emoji); };
-    });
-    
-    dialog.showModal(); // Força abertura como Modal Nativo
+async function customConfirm(title, message) {
+  const popover = $('#confirmPopover');
+  $('#customConfirmTitle').textContent = title;
+  $('#customConfirmMessage').textContent = message;
+  const result = await openPopover(popover, finish => {
+    $('#customConfirmAccept').onclick = () => finish(true);
+    $('#customConfirmCancel').onclick = () => finish(false);
+    placePopover(popover);
+    $('#customConfirmAccept').focus();
   });
+  $('#customConfirmAccept').onclick = null;
+  $('#customConfirmCancel').onclick = null;
+  return result === true;
+}
+
+// Resolve: emoji escolhido, '' para remover a reação ou null se cancelar.
+async function customReact() {
+  const popover = $('#reactionPopover');
+  const result = await openPopover(popover, finish => {
+    $('#removeReactionButton').onclick = () => finish('');
+    $('#reactionGrid').querySelectorAll('button').forEach(btn => { btn.onclick = () => finish(btn.dataset.emoji); });
+    placePopover(popover);
+    $('#reactionGrid').querySelector('button')?.focus();
+  });
+  return result;
 }
 
 function initials(name) {
