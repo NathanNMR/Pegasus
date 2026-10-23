@@ -1,0 +1,17 @@
+# Blueprint do Render: New → Blueprint → selecione este repositório.
+services:
+  - type: web
+    name: pegasus
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PEGASUS_TRUST_PROXY
+        value: "1"
+      - key: DATABASE_URL        # URI do Aiven (preencha no painel)
+        sync: false
+      - key: PG_CA_CERT          # conteúdo do ca.pem do Aiven (preencha no painel)
+        sync: false
+      - key: PEGASUS_MESSAGE_KEY # gere com: openssl rand -hex 32
+        sync: false

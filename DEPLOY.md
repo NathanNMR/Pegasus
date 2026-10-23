@@ -1,112 +1,111 @@
-# Hospedar o Pegasus de graça
+# Deploy do Pegasus: Render + Aiven (PostgreSQL)
 
-O Pegasus é um servidor Node (≥ 22.13) com banco **SQLite em arquivo** e conexões em tempo real (SSE). Por isso, a hospedagem precisa de:
+O Pegasus precisa de um processo Node ligado, **HTTPS** (o cookie de sessão é `Secure` em produção) e um **PostgreSQL**. O Render hospeda o app via Docker e o Aiven hospeda o banco. Como o banco é externo, o disco efêmero do Render não faz diferença.
 
-1. um processo Node **ligado o tempo todo** (nada de "serverless");
-2. um **disco que não se apaga** (onde ficam o banco e as mensagens);
-3. **HTTPS** (o cookie de sessão é `Secure` em produção).
+## 1. Criar o banco no Aiven
 
-A maioria dos planos gratuitos de PaaS não oferece o item 2 (o disco é apagado a cada reinício). Por isso o caminho recomendado é uma VM gratuita.
+1. Crie um serviço **PostgreSQL** (há plano gratuito).
+2. Em **Overview**, copie a **Service URI**:
+   `postgres://avnadmin:SENHA@pg-xxxx.aivencloud.com:PORTA/defaultdb?sslmode=require`
+3. Baixe o **CA certificate** (`ca.pem`) e abra-o em um editor de texto.
+4. Em **Allowed IP addresses**, confirme que o acesso externo está liberado (por padrão `0.0.0.0/0`).
 
-## Variáveis de ambiente
+## 2. Gerar a chave das mensagens
 
-| Variável | Para quê |
+```bash
+openssl rand -hex 32
+```
+
+**Guarde uma cópia em um gerenciador de senhas.** Se você perder ou trocar essa chave, as mensagens já gravadas ficam ilegíveis.
+
+## 3. Criar o serviço no Render
+
+**Opção A, Blueprint:** *New → Blueprint*, selecione o repositório. O `render.yaml` cria o serviço e pede os valores secretos.
+
+**Opção B, manual:** *New → Web Service*, selecione o repositório e configure:
+
+| Campo | Valor |
 |---|---|
-| `NODE_ENV=production` | Ativa cookie `Secure` e exige a chave abaixo |
-| `HOST=0.0.0.0` | Padrão é `127.0.0.1` (só acessível na própria máquina). Use `0.0.0.0` em contêiner/PaaS; `127.0.0.1` se houver Caddy/Nginx na mesma máquina |
-| `PORT` | Porta (padrão 3000; PaaS costuma definir sozinho) |
-| `PEGASUS_MESSAGE_KEY` | 64 caracteres hex. Gere com `openssl rand -hex 32`. **Guarde uma cópia**: sem ela as mensagens existentes ficam ilegíveis |
-| `PEGASUS_DATA_DIR` | Pasta do banco (precisa ser disco persistente) |
-| `PEGASUS_TRUST_PROXY=1` | Obrigatório atrás de proxy/túnel; sem isso o limite de tentativas de login vale para **todos os usuários juntos** |
+| Runtime | Docker |
+| Branch | `main` |
+| Health Check Path | `/api/health` |
 
----
+### Variáveis de ambiente
 
-## Caminho A (recomendado): VM "Always Free" da Oracle Cloud + HTTPS grátis
+| Variável | Valor |
+|---|---|
+| `DATABASE_URL` | Service URI do Aiven |
+| `PG_CA_CERT` | Conteúdo completo do `ca.pem`, de `-----BEGIN CERTIFICATE-----` até `-----END CERTIFICATE-----` |
+| `PEGASUS_MESSAGE_KEY` | Resultado do `openssl rand -hex 32` |
+| `PEGASUS_TRUST_PROXY` | `1` |
 
-Gratuito sem prazo, com disco persistente. Pede cartão para verificar a conta (não é cobrado dentro dos limites gratuitos). Confira os limites atuais em oracle.com/cloud/free — eles já mudaram antes (hoje relatam 2 OCPU/12 GB na VM ARM, além de VMs AMD "Micro" de 1 GB, que bastam para o Pegasus). A Oracle também pode recuperar instâncias ociosas: mantenha backups.
+`NODE_ENV`, `HOST`, `PORT` e `PEGASUS_DATA_DIR` já vêm do Dockerfile.
 
-### 1. Criar a VM
-1. Crie a conta e escolha a **região de origem** com cuidado (não dá para trocar depois; São Paulo/Vinhedo funcionam).
-2. *Compute → Instances → Create*: imagem **Ubuntu 24.04**, forma **VM.Standard.E2.1.Micro** (ou Ampere A1 se houver capacidade; "Out of capacity" é comum, tente outro horário).
-3. Baixe a chave SSH e anote o **IP público**.
-4. Na rede da VM (*VCN → Security List*), adicione regras de entrada TCP nas portas **80** e **443** (origem `0.0.0.0/0`).
+Na `DATABASE_URL` o `?sslmode=require` pode ficar: o servidor o remove e controla o SSL pelo `PG_CA_CERT`. Se a senha tiver caracteres especiais (`@`, `/`, `#`), use a versão codificada que o Aiven mostra.
 
-### 2. Domínio gratuito
-Em duckdns.org crie um subdomínio (ex.: `meupegasus.duckdns.org`) apontando para o IP da VM.
+## 4. Primeiro deploy
 
-### 3. Preparar o servidor
+Clique em **Manual Deploy → Clear build cache & deploy**. Nos logs, procure por:
+
+- `RUN npm ci --omit=dev` concluído na etapa de build;
+- `Pegasus` escutando na porta, sem erros de conexão com o banco.
+
+As tabelas são criadas sozinhas na primeira inicialização.
+
+## Solução de problemas
+
+| Erro no log | Causa e solução |
+|---|---|
+| `Cannot find package 'pg'` | O Dockerfile não instalou as dependências. Use o `Dockerfile` deste repositório (com `npm ci`) e limpe o cache de build |
+| `Defina DATABASE_URL...` | Variável ausente no Render |
+| `self-signed certificate in certificate chain` | `PG_CA_CERT` ausente ou incompleto. Cole o `ca.pem` inteiro, incluindo as linhas BEGIN/END |
+| `Defina PEGASUS_MESSAGE_KEY para executar em produção` | Variável ausente |
+| `PEGASUS_MESSAGE_KEY precisa ter 64 caracteres hexadecimais` | Gere de novo com `openssl rand -hex 32` e cole sem espaços |
+| `EACCES: permission denied, mkdir '/data'` | Dockerfile antigo; o atual cria `/data` com permissão para o usuário `node` |
+| `password authentication failed` / `ENOTFOUND` | URI copiada errada ou serviço Aiven desligado |
+| `ETIMEDOUT` / `ECONNREFUSED` | IP do Render bloqueado em *Allowed IP addresses* do Aiven |
+| Login falha para todos depois de poucas tentativas | Falta `PEGASUS_TRUST_PROXY=1` |
+
+## Limitações do plano gratuito
+
+- O Render suspende o serviço após inatividade; a primeira requisição depois disso demora cerca de um minuto. Conexões SSE caem nesse intervalo e o front-end reconecta.
+- Confira os limites e a retenção do plano gratuito do Aiven; planos gratuitos podem ter armazenamento limitado ou ser desligados por inatividade.
+
+## Backup
+
+Com `postgresql-client` instalado e `DATABASE_URL` no ambiente:
+
 ```bash
-ssh -i sua-chave ubuntu@IP_DA_VM
-
-# Firewall do Ubuntu da Oracle (além da regra na nuvem)
-sudo iptables -I INPUT 6 -p tcp --dport 80  -j ACCEPT
-sudo iptables -I INPUT 6 -p tcp --dport 443 -j ACCEPT
-sudo apt-get install -y iptables-persistent && sudo netfilter-persistent save
-
-# Node 22, git, sqlite3 (para backup) e Caddy (HTTPS automático)
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt-get install -y nodejs git sqlite3 caddy
-node -v   # precisa ser v22.13 ou mais novo
+./deploy/backup.sh
 ```
 
-### 4. Instalar o app
+Gera um dump em `/var/backups/pegasus` e mantém os 14 mais recentes. Restaurar:
+
 ```bash
-sudo useradd --system --home /opt/pegasus --shell /usr/sbin/nologin pegasus
+pg_restore --no-owner --clean --dbname "$DATABASE_URL" arquivo.dump
+```
+
+Guarde também a `PEGASUS_MESSAGE_KEY`: o banco restaurado só é legível com a mesma chave.
+
+## Atualizar o app
+
+```bash
+git add . && git commit -m "fix: deploy" && git push origin main
+```
+
+Com `autoDeploy` ativo, o Render faz o deploy sozinho. O servidor migra o banco quando necessário.
+
+## Alternativa: VM própria (Oracle Cloud, VPS…)
+
+Os arquivos em `deploy/` (`pegasus.service`, `Caddyfile`, `pegasus.env.example`, `backup.sh`) servem para rodar com systemd e Caddy (HTTPS automático) em uma VM Ubuntu:
+
+```bash
 sudo git clone https://github.com/SEU_USUARIO/Pegasus.git /opt/pegasus
-sudo mkdir -p /var/lib/pegasus && sudo chown pegasus: /var/lib/pegasus && sudo chmod 700 /var/lib/pegasus
-
-sudo cp /opt/pegasus/deploy/pegasus.env.example /etc/pegasus.env
-sudo sed -i "s|^PEGASUS_MESSAGE_KEY=.*|PEGASUS_MESSAGE_KEY=$(openssl rand -hex 32)|" /etc/pegasus.env
+cd /opt/pegasus && sudo npm ci --omit=dev
+sudo cp deploy/pegasus.env.example /etc/pegasus.env     # preencha DATABASE_URL, PEGASUS_MESSAGE_KEY, PG_CA_CERT
 sudo chmod 600 /etc/pegasus.env
-sudo cat /etc/pegasus.env     # copie a PEGASUS_MESSAGE_KEY para um lugar seguro (gerenciador de senhas)
-
-sudo cp /opt/pegasus/deploy/pegasus.service /etc/systemd/system/
+sudo cp deploy/pegasus.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now pegasus
-sudo systemctl status pegasus        # deve estar "active (running)"
 ```
 
-### 5. HTTPS
-```bash
-sudo cp /opt/pegasus/deploy/Caddyfile /etc/caddy/Caddyfile
-sudo nano /etc/caddy/Caddyfile       # troque o domínio pelo seu
-sudo systemctl reload caddy
-```
-Abra `https://seu-dominio.duckdns.org`. Crie sua conta e pronto.
-
-### 6. Backup diário (importante)
-```bash
-sudo crontab -e
-# adicione:
-17 3 * * * /opt/pegasus/deploy/backup.sh
-```
-Baixe os backups de tempos em tempos (`scp`) para outro lugar; uma cópia na mesma VM não protege contra perder a VM.
-
-### 7. Atualizar o app depois
-```bash
-cd /opt/pegasus && sudo git pull && sudo systemctl restart pegasus
-```
-(O servidor migra o banco sozinho quando necessário.)
-
----
-
-## Caminho B: no seu computador, com link público (para testar ou usar com amigos)
-
-Grátis e sem cartão, mas só funciona com o PC ligado e o link muda a cada execução.
-
-```bash
-export NODE_ENV=production HOST=127.0.0.1 PEGASUS_TRUST_PROXY=1
-export PEGASUS_MESSAGE_KEY=$(openssl rand -hex 32)    # guarde esta chave
-npm start
-# em outro terminal (instale o cloudflared: developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads)
-cloudflared tunnel --url http://localhost:3000
-```
-Ele mostra um endereço `https://….trycloudflare.com` para compartilhar. Para o link ser fixo é preciso um domínio no Cloudflare (túnel nomeado, também gratuito).
-
-## Caminho C: serviços gratuitos que "dormem" (só para demonstração)
-
-Planos gratuitos de PaaS (como o Render) normalmente suspendem o app quando ocioso e **apagam o disco** a cada reinício ou novo deploy. No Pegasus isso significa perder contas e mensagens. Serve para demonstrar, não para uso real. Se usar, rode com o `Dockerfile` do repositório, defina as variáveis acima (`PEGASUS_TRUST_PROXY=1`) e confirme os limites atuais no site do provedor.
-
-## Lembretes
-
-- Se outras pessoas usarem seu Pegasus, você guarda dados delas: avise, faça backup e mantenha o sistema atualizado.
-- As mensagens de texto são cifradas no banco com `PEGASUS_MESSAGE_KEY`; quem tiver o servidor **e** a chave consegue lê-las. Não é criptografia ponta a ponta.
+Depois configure o Caddy com seu domínio (`deploy/Caddyfile`). Não é preciso criar um `PEGASUS_DATA_DIR` persistente, pois os dados ficam no PostgreSQL.

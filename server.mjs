@@ -44,7 +44,29 @@ if (process.env.PEGASUS_MESSAGE_KEY) {
   messageKey = Buffer.from(hex, 'hex');
 }
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+function buildPoolConfig() {
+  const raw = process.env.DATABASE_URL;
+  if (!raw) throw new Error('Defina DATABASE_URL com a URI de conexão do PostgreSQL.');
+  const url = new URL(raw);
+  // O pg dá prioridade ao sslmode da URL sobre o objeto `ssl`; removemos para controlar o SSL aqui.
+  const sslmode = url.searchParams.get('sslmode');
+  url.searchParams.delete('sslmode');
+  const isLocal = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+  let ssl = false;
+  if (sslmode !== 'disable' && !(isLocal && !sslmode)) {
+    if (process.env.PG_CA_CERT) {
+      // Certificado da CA do provedor (ex.: ca.pem do Aiven): validação completa.
+      ssl = { ca: process.env.PG_CA_CERT.replace(/\\n/g, '\n'), rejectUnauthorized: true };
+    } else {
+      console.warn('[pegasus] PG_CA_CERT não definido: conexão cifrada, mas o certificado do banco NÃO é validado.');
+      ssl = { rejectUnauthorized: false };
+    }
+  }
+  return { connectionString: url.toString(), ssl, max: Number(process.env.PG_POOL_MAX) || 10 };
+}
+
+const pool = new pg.Pool(buildPoolConfig());
+pool.on('error', (error) => console.error('[pegasus] erro no pool do PostgreSQL:', error.message));
 
 const db = {
   async query(sql, params = []) {
