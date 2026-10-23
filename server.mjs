@@ -428,7 +428,18 @@ async function readJson(req) {
     const error = new Error('JSON inválido.'); error.status = 400; throw error;
   }
 }
-function ipFromRequest(req) { return req.socket.remoteAddress || 'unknown'; }
+// Atrás de um proxy reverso (Caddy, Cloudflare, Render…) o IP do socket é o do proxy. PEGASUS_TRUST_PROXY=N diz
+// quantos proxies confiáveis existem na frente do app; o IP real é o N-ésimo da direita em X-Forwarded-For
+// (o que o cliente envia fica à esquerda e, por isso, nunca é usado).
+const TRUST_PROXY_HOPS = Math.max(0, Math.min(5, Number(process.env.PEGASUS_TRUST_PROXY) || 0));
+function ipFromRequest(req) {
+  if (TRUST_PROXY_HOPS > 0) {
+    const chain = String(req.headers['x-forwarded-for'] || '').split(',').map(part => part.trim()).filter(Boolean);
+    const candidate = chain[chain.length - TRUST_PROXY_HOPS];
+    if (candidate && candidate.length <= 64) return candidate;
+  }
+  return req.socket.remoteAddress || 'unknown';
+}
 const attempts = new Map();
 function limited(req) {
   const key = ipFromRequest(req);

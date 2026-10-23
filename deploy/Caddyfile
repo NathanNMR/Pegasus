@@ -1,0 +1,5 @@
+# Troque pelo seu domínio (ex.: meupegasus.duckdns.org). O HTTPS é obtido e renovado automaticamente.
+meupegasus.duckdns.org {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3000
+}

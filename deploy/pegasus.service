@@ -1,0 +1,21 @@
+[Unit]
+Description=Pegasus Messenger
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pegasus
+WorkingDirectory=/opt/pegasus
+EnvironmentFile=/etc/pegasus.env
+ExecStart=/usr/bin/node server.mjs
+Restart=always
+RestartSec=3
+# Endurecimento básico
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/pegasus
+
+[Install]
+WantedBy=multi-user.target

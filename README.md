@@ -4,6 +4,8 @@
 
 > **Status:** protótipo local para desenvolvimento. Ainda não é recomendado para uso público e não possui criptografia de ponta a ponta. PG1 é uma transformação matemática personalizada, não criptografia moderna.
 
+> **Hospedagem gratuita:** veja o passo a passo em [DEPLOY.md](DEPLOY.md).
+
 ## Novidades da v1.0
 
 - **Grupos:** botão **+ → Criar um grupo**. Nome, descrição e foto opcionais; até 50 participantes, escolhidos entre os seus contatos (sem bloqueio). Todos enviam texto, imagens, GIFs, áudio, voz, documentos e contatos, e podem responder, reagir, favoritar, fixar e encaminhar.
