@@ -1,8 +1,22 @@
-# Pegasus — Mensageiro (v0.9)
+# Pegasus — Mensageiro (v1.0)
 
 **Pegasus** é um protótipo de mensageiro em tempo real com interface Liquid Glass, identidade visual azul inspirada em uma galáxia e a constelação de Pegasus.
 
 > **Status:** protótipo local para desenvolvimento. Ainda não é recomendado para uso público e não possui criptografia de ponta a ponta. PG1 é uma transformação matemática personalizada, não criptografia moderna.
+
+## Novidades da v1.0
+
+- **Grupos:** botão **+ → Criar um grupo**. Nome, descrição e foto opcionais; até 50 participantes, escolhidos entre os seus contatos (sem bloqueio). Todos enviam texto, imagens, GIFs, áudio, voz, documentos e contatos, e podem responder, reagir, favoritar, fixar e encaminhar.
+- **Administração:** quem cria é administrador. Administradores editam nome/descrição/foto, adicionam e removem participantes e promovem/rebaixam outros administradores. O grupo nunca fica sem administrador (se o último sair, o participante mais antigo é promovido).
+- **Privacidade em grupos:** quem entra depois **não vê o histórico anterior**. Qualquer participante pode sair; quando o último sai, o grupo é apagado. Avisos automáticos (“X adicionou Y”, “X saiu”) aparecem no chat e não podem ser editados.
+- **“Digitando…”** em conversas e grupos (“Ana está digitando…”), em tempo real e sem gravar nada.
+- **Contador de não lidas** por conversa e no título da aba.
+- **Fixar conversas** no topo (até 5), pelo botão direito na lista.
+- **Rascunhos** por conversa, mostrados na lista (“Rascunho: …”).
+- **Formatação de texto** estilo WhatsApp/Telegram: `*negrito*`, `_itálico_`, `~riscado~`, `` `código` `` e blocos com três crases; links http/https ficam clicáveis (abrem em nova aba com `noopener`).
+- **Popovers acima de janelas modais:** confirmações e reações agora usam a camada superior nativa do navegador.
+- **Correções:** corrida ao abrir conversa recém-criada; estilo inline bloqueado pela CSP removido do `index.html`.
+- **Migração automática:** a tabela `conversations` de bancos antigos é reconstruída (sem perder conversas nem mensagens) para aceitar grupos.
 
 ## Novidades da v0.9
 

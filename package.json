@@ -1,9 +1,9 @@
 {
   "name": "pegasus-messenger",
-  "version": "0.9.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Pegasus: respostas, favoritos, encaminhamento, seleção múltipla e gestão de contatos",
+  "description": "Pegasus: grupos, digitando, não lidas, fixadas, formatação de texto, respostas, favoritos e encaminhamento",
   "engines": {
     "node": ">=22.13.0"
   },

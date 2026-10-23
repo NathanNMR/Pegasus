@@ -9,63 +9,6 @@
   <link rel="stylesheet" href="/styles.css" />
   <title>Pegasus — Mensagens</title>
   
-  <style>
-    /* 1. CORREÇÃO DEFINITIVA DE SOBREPOSIÇÃO (Impede textos de esmagarem os botões) */
-    .inbox-heading, .chat-header {
-      display: flex !important;
-      flex-wrap: nowrap !important;
-      align-items: center !important;
-      width: 100% !important;
-      overflow: hidden !important;
-      gap: 8px !important;
-    }
-    /* Força a área de texto a encolher e não ultrapassar o espaço disponível */
-    .inbox-heading > div:first-child, .contact-header-button {
-      flex: 1 1 0 !important; 
-      min-width: 0 !important;
-      overflow: hidden !important;
-    }
-    .contact-header-button {
-      display: flex !important;
-      align-items: center !important;
-    }
-    .contact-meta {
-      flex: 1 1 0 !important;
-      min-width: 0 !important;
-      overflow: hidden !important;
-      display: flex !important;
-      flex-direction: column !important;
-    }
-    /* Aplica as reticências (...) caso o texto seja muito grande */
-    .inbox-heading h2, .contact-meta strong, .contact-meta span {
-      white-space: nowrap !important;
-      overflow: hidden !important;
-      text-overflow: ellipsis !important;
-      display: block !important;
-      margin: 0 !important;
-    }
-    /* Protege o tamanho dos botões */
-    .inbox-heading button, .header-action {
-      flex-shrink: 0 !important;
-    }
-    .header-action {
-      display: flex !important;
-      align-items: center !important;
-      gap: 4px !important;
-    }
-
-    /* 2. ESTILIZAÇÃO NATIVA DOS MODAIS (Fundo escuro e posicionamento) */
-    dialog::backdrop {
-      background: rgba(4, 10, 24, 0.65) !important;
-      backdrop-filter: blur(4px) !important;
-    }
-    dialog {
-      margin: auto; /* Centraliza modais convencionais */
-      z-index: 1000;
-    }
-    
-  </style>
-
   <script type="module" src="/app.js"></script>
 </head>
 <body>
@@ -180,7 +123,7 @@
   <dialog id="newChatDialog" class="new-chat-dialog glass"><form id="newChatForm" method="dialog"><button id="closeDialog" type="button" class="dialog-close" aria-label="Fechar">×</button><div class="dialog-sigil">✧</div><span class="eyebrow">CRIAR CONEXÃO</span><h2>Uma nova conversa.</h2><p>Encontre outra pessoa pelo e-mail ou pelo código Pegasus de seis caracteres.</p>
     <div class="contact-mode"><button id="modeEmail" type="button" class="contact-mode-button active">Por e-mail</button><button id="modeCode" type="button" class="contact-mode-button">Por código</button></div>
     <label id="contactEmailGroup" class="field-group"><span>E-mail do contato</span><input id="contactEmail" type="email" required placeholder="amigo@exemplo.com" /></label>
-    <label id="contactCodeGroup" class="field-group" hidden><span>Código Pegasus</span><input id="contactCode" type="text" pattern="[A-Za-z0-9]{6}" minlength="6" maxlength="6" autocomplete="off" placeholder="A7K3M9" style="text-transform:uppercase;letter-spacing:.24em" /></label><button id="createChatSubmit" type="submit" class="primary-button">Iniciar ou solicitar conversa <span aria-hidden="true">↗</span></button></form></dialog>
+    <label id="contactCodeGroup" class="field-group" hidden><span>Código Pegasus</span><input id="contactCode" type="text" pattern="[A-Za-z0-9]{6}" minlength="6" maxlength="6" autocomplete="off" placeholder="A7K3M9" /></label><button id="createChatSubmit" type="submit" class="primary-button">Iniciar ou solicitar conversa <span aria-hidden="true">↗</span></button><button id="openGroupCreate" type="button" class="soft-button group-create-link">👥 Criar um grupo</button></form></dialog>
   <dialog id="contactDialog" class="mini-modal glass contact-dialog" aria-label="Informações do contato">
     <div class="mini-modal-content"><header class="profile-heading"><div class="contact-detail-heading"><div id="contactDetailAvatar" class="contact-avatar large">P</div><div><span class="eyebrow">DETALHES DA CONVERSA</span><h2 id="contactDetailTitle">Contato</h2><p id="contactDetailBio"></p></div></div><button id="closeContactDialog" type="button" class="dialog-close-inline" aria-label="Fechar">×</button></header>
       <div class="contact-detail-grid"><div><small>E-mail</small><strong id="contactDetailEmail"></strong><button id="copyContactEmail" class="text-button" type="button">Copiar e-mail</button></div><div><small>Código Pegasus</small><strong id="contactDetailCode"></strong><button id="copyContactCode" class="text-button" type="button">Copiar código</button></div><div><small>Conversa iniciada em</small><strong id="contactDetailStarted"></strong></div></div>
@@ -191,6 +134,42 @@
       <div class="contact-media-section"><div class="section-heading"><h3>Gerenciar arquivos</h3><span id="contactMediaCount">0 arquivos</span></div><div id="contactMediaList" class="contact-media-list"></div></div>
       <button id="saveContactPreferences" type="button" class="primary-button">Salvar apelido e notificações <span>✓</span></button>
       <div class="contact-danger-actions"><button id="clearConversationButton" type="button">Limpar conversa</button><button id="blockContactButton" type="button">Bloquear contato</button><button id="deleteContactButton" type="button">Excluir contato</button></div>
+    </div>
+  </dialog>
+  <dialog id="groupCreateDialog" class="mini-modal glass profile-dialog group-dialog" aria-label="Criar grupo">
+    <form id="groupCreateForm" class="mini-modal-content">
+      <header class="profile-heading"><div><span class="eyebrow">NOVO GRUPO</span><h2>Criar grupo</h2></div><button id="closeGroupCreate" type="button" class="dialog-close-inline" aria-label="Fechar">×</button></header>
+      <div class="profile-photo-row"><div id="groupCreatePreview" class="account-avatar profile-photo">👥</div><div><label for="groupCreateAvatarInput" class="soft-button profile-photo-label">Foto do grupo</label><input id="groupCreateAvatarInput" type="file" accept="image/png,image/jpeg,image/webp" hidden /><button id="groupCreateRemoveAvatar" type="button" class="text-button">Remover foto</button></div></div>
+      <label class="field-group"><span>Nome do grupo</span><input id="groupCreateTitle" maxlength="60" required autocomplete="off" placeholder="Ex.: Galáxia dos amigos" /></label>
+      <label class="field-group"><span>Descrição (opcional)</span><textarea id="groupCreateDescription" rows="2" maxlength="200" placeholder="Sobre o que é este grupo?"></textarea></label>
+      <div class="group-picker">
+        <div class="section-heading"><h3>Participantes</h3><span id="groupCreateCount">0 selecionados</span></div>
+        <input id="groupCreateFilter" class="group-filter" type="search" autocomplete="off" placeholder="Buscar nos seus contatos" aria-label="Buscar contatos" />
+        <div id="groupCreateContacts" class="group-contact-list"></div>
+      </div>
+      <button id="groupCreateSubmit" type="submit" class="primary-button">Criar grupo <span>✓</span></button>
+    </form>
+  </dialog>
+  <dialog id="groupInfoDialog" class="mini-modal glass profile-dialog group-dialog" aria-label="Informações do grupo">
+    <div class="mini-modal-content">
+      <header class="profile-heading"><div class="contact-detail-heading"><div id="groupInfoAvatar" class="contact-avatar large">👥</div><div><span class="eyebrow">GRUPO</span><h2 id="groupInfoTitle">Grupo</h2><p id="groupInfoDescription"></p></div></div><button id="closeGroupInfo" type="button" class="dialog-close-inline" aria-label="Fechar">×</button></header>
+      <div id="groupAdminEdit" class="group-admin-edit" hidden>
+        <div class="profile-photo-row"><div id="groupEditPreview" class="account-avatar profile-photo">👥</div><div><label for="groupEditAvatarInput" class="soft-button profile-photo-label">Alterar foto</label><input id="groupEditAvatarInput" type="file" accept="image/png,image/jpeg,image/webp" hidden /><button id="groupEditRemoveAvatar" type="button" class="text-button">Remover foto</button></div></div>
+        <label class="field-group"><span>Nome do grupo</span><input id="groupEditTitle" maxlength="60" autocomplete="off" /></label>
+        <label class="field-group"><span>Descrição</span><textarea id="groupEditDescription" rows="2" maxlength="200"></textarea></label>
+        <button id="groupEditSave" type="button" class="soft-button">Salvar informações do grupo</button>
+      </div>
+      <div class="section-heading"><h3>Participantes</h3><span id="groupMemberCount">0</span></div>
+      <div id="groupMemberList" class="group-member-list"></div>
+      <div id="groupAddSection" class="group-picker" hidden>
+        <div class="section-heading"><h3>Adicionar participantes</h3><span id="groupAddCount">0 selecionados</span></div>
+        <div id="groupAddContacts" class="group-contact-list"></div>
+        <button id="groupAddSubmit" type="button" class="soft-button">Adicionar selecionados</button>
+      </div>
+      <label class="notification-setting"><input id="groupNotificationsEnabled" type="checkbox" checked /><span><strong>Notificações do grupo</strong><small>Permitir notificações do navegador quando houver novas mensagens.</small></span></label>
+      <label class="field-group"><span>Mensagens que você enviar</span><select id="groupDisappearingSeconds" class="group-select"><option value="0">Não expiram</option><option value="3600">Após 1 hora</option><option value="86400">Após 24 horas</option><option value="604800">Após 7 dias</option></select></label>
+      <button id="groupSavePrefs" type="button" class="primary-button">Salvar preferências <span>✓</span></button>
+      <div class="contact-danger-actions"><button id="groupClearButton" type="button">Limpar conversa</button><button id="groupLeaveButton" type="button">Sair do grupo</button></div>
     </div>
   </dialog>
   <dialog id="forwardDialog" class="mini-modal glass" aria-label="Encaminhar mensagens"><div class="mini-modal-content"><header class="profile-heading"><div><span class="eyebrow">COMPARTILHAR</span><h2>Encaminhar mensagens</h2><p id="forwardCountLabel">Selecione uma conversa de destino.</p></div><button id="closeForwardDialog" type="button" class="dialog-close-inline" aria-label="Fechar">×</button></header><div id="forwardConversationList" class="forward-conversation-list"></div><button id="cancelForwardButton" type="button" class="soft-button">Cancelar</button></div></dialog>
@@ -248,7 +227,7 @@
   </dialog>
   
   <!-- Confirmação e reações em popover compacto (sem cobrir a tela) -->
-  <div id="confirmPopover" class="floating-popover" role="alertdialog" aria-labelledby="customConfirmTitle" aria-describedby="customConfirmMessage" hidden>
+  <div id="confirmPopover" class="floating-popover" popover="manual" role="alertdialog" aria-labelledby="customConfirmTitle" aria-describedby="customConfirmMessage" hidden>
     <span class="popover-eyebrow">AÇÃO NECESSÁRIA</span>
     <strong id="customConfirmTitle" class="popover-title">Confirmação</strong>
     <p id="customConfirmMessage" class="popover-text">Você tem certeza?</p>
@@ -258,7 +237,7 @@
     </div>
   </div>
 
-  <div id="reactionPopover" class="floating-popover reaction-popover" role="menu" aria-label="Reagir à mensagem" hidden>
+  <div id="reactionPopover" class="floating-popover reaction-popover" popover="manual" role="menu" aria-label="Reagir à mensagem" hidden>
     <div id="reactionGrid" class="reaction-grid">
       <button type="button" data-emoji="👍" aria-label="Curtir">👍</button>
       <button type="button" data-emoji="❤️" aria-label="Amei">❤️</button>

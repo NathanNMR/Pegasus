@@ -728,3 +728,69 @@ html[data-theme="light"] .floating-popover { background: rgba(247,251,255,.98); 
 html[data-theme="light"] .popover-eyebrow, html[data-theme="light"] .popover-text { color: #48627e; }
 html[data-theme="light"] .popover-btn { color: #183451; background: rgba(59,112,177,.1); border-color: rgba(45,92,143,.25); }
 html[data-theme="light"] .popover-btn.primary { color: #0e203b; background: linear-gradient(140deg, #d6eeff, #97cfff); }
+
+/* Popover nativo (camada superior): sem centralização padrão do navegador */
+.floating-popover { inset: auto; margin: 0; overflow: visible; }
+
+/* v1.0 — grupos, não lidas, fixadas, digitando e formatação */
+.conversation-preview-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; min-width: 0; }
+.conversation-preview-row .conversation-preview { margin-top: 0; flex: 1; min-width: 0; }
+.unread-badge { flex: 0 0 auto; min-width: 20px; height: 20px; padding: 0 6px; display: grid; place-items: center; border-radius: 999px; background: #71baf8; color: #062142; font: 700 10px/1 system-ui, sans-serif; }
+.conversation-pinned-mark { font-size: 11px; color: #9fd8ff; flex: 0 0 auto; }
+.conversation-name-row time { margin-left: auto; }
+.typing-label { color: #7fd0ff !important; font-style: italic; }
+.draft-tag { color: #ff9eb0; font-style: normal; }
+.contact-avatar.small { width: 34px; height: 34px; border-radius: 11px; font-size: 13px; }
+.contact-avatar .avatar-photo { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+
+.message-sender { display: block; font-size: 11px; font-weight: 700; margin-bottom: 4px; letter-spacing: .01em; }
+.system-notice { align-self: center; max-width: 82%; text-align: center; color: #c3d8ee; font-size: 11px; line-height: 1.5; padding: 7px 14px; border: 1px solid rgba(255,255,255,.10); background: rgba(13,26,45,.34); border-radius: 14px; margin: 4px 0; overflow-wrap: anywhere; }
+.message-body strong { font-weight: 750; }
+.message-body s { opacity: .8; }
+.message-code { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 1px 6px; border-radius: 6px; background: rgba(4,14,30,.45); border: 1px solid rgba(255,255,255,.10); }
+.message-codeblock { display: block; margin: 6px 0; padding: 9px 11px; border-radius: 10px; background: rgba(4,14,30,.5); border: 1px solid rgba(255,255,255,.10); font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-x: auto; }
+.message-link { color: #a8e1ff; text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
+.message-row.mine .message-link { color: #fff; }
+
+.group-create-link { width: 100%; margin-top: 10px; }
+.group-dialog { max-height: calc(100dvh - 24px); overflow-y: auto; }
+.group-dialog .section-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.group-dialog .section-heading h3 { font-size: 13px; margin: 0; }
+.group-dialog .section-heading span { font-size: 11px; color: #9fbbd9; }
+.group-dialog .field-group input, .group-filter { width: 100%; border: 1px solid rgba(170,220,255,.24); background: rgba(4,17,36,.56); color: #eef8ff; padding: 11px 12px; border-radius: 12px; font: inherit; font-size: 13px; }
+.group-filter { margin: 8px 0; }
+.group-picker { display: flex; flex-direction: column; gap: 6px; }
+.group-contact-list, .group-member-list { display: flex; flex-direction: column; gap: 2px; max-height: 210px; overflow-y: auto; border: 1px solid var(--hairline); border-radius: 14px; padding: 6px; background: rgba(8,26,50,.35); }
+.group-contact-item, .group-member { display: flex; align-items: center; gap: 11px; padding: 7px 8px; border-radius: 11px; font-size: 13px; cursor: pointer; }
+.group-member { cursor: default; flex-wrap: wrap; }
+.group-contact-item:hover { background: rgba(117,185,243,.14); }
+.group-contact-item input { accent-color: #6eb9f2; width: 16px; height: 16px; }
+.group-member-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.group-member-info strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-member-info small { font-size: 10px; color: #9fbbd9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.role-badge { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; border: 1px solid rgba(159,216,255,.35); color: #bfe6ff; }
+.group-member-actions { display: flex; gap: 6px; flex: 1 1 100%; justify-content: flex-end; }
+.mini-action { font-size: 11px; padding: 5px 10px; border-radius: 9px; border: 1px solid rgba(160,216,255,.27); background: rgba(59,112,177,.18); color: #e5f6ff; cursor: pointer; }
+.mini-action:hover { background: rgba(114,191,255,.25); }
+.mini-action.danger { color: #ffc0cc; border-color: rgba(255,120,145,.4); }
+.group-admin-edit { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--hairline); border-radius: 16px; background: rgba(99,155,216,.06); }
+.group-dialog textarea { width: 100%; }
+.group-select { width: 100%; padding: 12px 14px; border: 1px solid rgba(160,190,255,.2); border-radius: 12px; background: rgba(12,25,51,.7); color: #edf3ff; font: inherit; }
+
+html[data-theme="light"] .system-notice { color: #48627e; background: rgba(255,255,255,.7); border-color: rgba(45,88,135,.18); }
+html[data-theme="light"] .message-code, html[data-theme="light"] .message-codeblock { background: rgba(35,74,116,.08); border-color: rgba(35,74,116,.18); }
+html[data-theme="light"] .message-link { color: #1c6aa8; }
+html[data-theme="light"] .message-row.mine .message-link { color: #0b4a7d; }
+html[data-theme="light"] .typing-label { color: #1c78b8 !important; }
+html[data-theme="light"] .group-dialog .field-group input, html[data-theme="light"] .group-filter, html[data-theme="light"] .group-select { background: #fff; color: #183451; border-color: rgba(45,92,143,.3); }
+html[data-theme="light"] .group-contact-list, html[data-theme="light"] .group-member-list { background: rgba(255,255,255,.6); }
+html[data-theme="light"] .group-dialog .section-heading span, html[data-theme="light"] .group-member-info small { color: #526b86; }
+html[data-theme="light"] .mini-action { color: #183451; background: rgba(59,112,177,.1); border-color: rgba(45,92,143,.25); }
+html[data-theme="light"] .role-badge { color: #1c6aa8; border-color: rgba(45,92,143,.4); }
+
+#contactCode { text-transform: uppercase; letter-spacing: .24em; }
+.group-member-list { max-height: none; }
+.group-member { flex-wrap: nowrap; }
+.group-member-actions { flex: 0 0 auto; margin-left: auto; }
+.group-member-info { flex: 1 1 auto; }
+@media (max-width: 480px) { .group-member { flex-wrap: wrap; } .group-member-actions { flex: 1 1 100%; } }
