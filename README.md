@@ -84,6 +84,9 @@ Detalhes, solução de problemas e alternativas em [DEPLOY.md](DEPLOY.md).
 ├── server.mjs            # servidor HTTP, API, SSE e acesso ao PostgreSQL
 ├── package.json
 ├── public/               # front-end (HTML, CSS, JS, imagens)
+│   ├── icons.svg         # sprite de ícones (Lucide)
+│   ├── icons.js          # helper de ícones e mapa de reações
+│   └── motion.css        # animações, ícones e ajustes mobile
 ├── deploy/               # exemplos para VM própria (env, systemd, Caddy, backup)
 ├── tests/                # testes
 ├── DEPLOY.md
@@ -100,6 +103,13 @@ Detalhes, solução de problemas e alternativas em [DEPLOY.md](DEPLOY.md).
 - Mensagens temporárias, confirmações de leitura e indicador “digitando…”.
 - Formatação estilo WhatsApp (`*negrito*`, `_itálico_`, `~riscado~`, `` `código` ``).
 - Temas claro e escuro; perfis com foto e biografia; bloqueio de contatos.
+
+## Interface: ícones, animações e mobile
+
+- **Ícones:** a interface não usa emojis. Todos os ícones vêm de um sprite SVG (`public/icons.svg`) baseado no [Lucide](https://lucide.dev) (licença ISC). Em HTML: `<svg class="icon"><use href="/icons.svg#i-send"/></svg>`; em JS: `icon('send')` (de `icons.js`). Para adicionar um ícone, inclua um `<symbol id="i-nome">` no sprite.
+- **Reações:** o banco continua guardando o caractere Unicode (compatível com dados antigos), mas a tela exibe ícones coloridos (mapa em `icons.js`). Emojis digitados pelas pessoas dentro das mensagens continuam funcionando normalmente.
+- **Animações:** ficam em `public/motion.css` (entrada de telas, lista de conversas, balões de mensagem, menus, diálogos, toasts, indicador “digitando…”, microinterações de botões). Quem ativa “reduzir movimento” no sistema recebe a interface sem animações.
+- **Mobile:** transição deslizante entre lista e conversa, alvos de toque de 44 px, áreas seguras (notch e barra de gestos), campos com 16 px (evita zoom no iOS) e diálogos como folhas que sobem da base.
 
 ## Segurança
 

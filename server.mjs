@@ -267,10 +267,10 @@ function unpackStoredMessage(stored) {
 }
 function previewMessage(message) {
   if (!message) return null;
-  if (message.kind === 'image') return message.image?.mime === 'image/gif' ? '🎞️ GIF' : '🖼️ Imagem';
-  if (message.kind === 'audio') return message.file?.voice ? '🎤 Mensagem de voz' : '🎵 Áudio';
-  if (message.kind === 'document') return '📄 Documento';
-  if (message.kind === 'contact') return `👤 ${message.contact.name}`;
+  if (message.kind === 'image') return message.image?.mime === 'image/gif' ? 'GIF' : 'Imagem';
+  if (message.kind === 'audio') return message.file?.voice ? 'Mensagem de voz' : 'Áudio';
+  if (message.kind === 'document') return 'Documento';
+  if (message.kind === 'contact') return message.contact.name;
   if (message.kind === 'system') return message.text;
   try { return decodePegasus(message.ciphertext).replace(/\s+/g, ' ').trim() || 'Mensagem'; }
   catch { return 'Mensagem'; }
@@ -521,6 +521,7 @@ const staticFiles = new Map([
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']], ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/cipher.js', ['cipher.js', 'text/javascript; charset=utf-8']], ['/editor.js', ['editor.js', 'text/javascript; charset=utf-8']],
   ['/favicon.png', ['favicon.png', 'image/png']], ['/pegasus-logo.png', ['pegasus-logo.png', 'image/png']],
+  ['/icons.js', ['icons.js', 'text/javascript; charset=utf-8']], ['/motion.css', ['motion.css', 'text/css; charset=utf-8']], ['/icons.svg', ['icons.svg', 'image/svg+xml']],
   ['/pegasus-galaxy.svg', ['pegasus-galaxy.svg', 'image/svg+xml']], ['/pegasus-constellation.svg', ['pegasus-constellation.svg', 'image/svg+xml']],
 ]);
 

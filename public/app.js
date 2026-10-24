@@ -1,6 +1,7 @@
 import { encodePegasus, decodePegasus } from './cipher.js';
 import { setupImageEditor } from './editor.js';
 import { setupVoiceRecorder } from './voice-recorder.js';
+import { icon, iconLabel, reactionInfo } from './icons.js';
 
 const $ = selector => document.querySelector(selector);
 const state = {
@@ -27,6 +28,9 @@ const state = {
   typing: new Map(),
   drafts: new Map(),
   groupDetail: null,
+  listAnimated: false,
+  knownMessageIds: new Set(),
+  animatedConversationId: null,
 };
 const isGroup = conversation => conversation?.kind === 'group';
 let toastTimer;
@@ -36,7 +40,7 @@ let refreshWaiters = [];
 
 function showToast(message, isError = false) {
   const element = $('#toast');
-  element.textContent = message;
+  element.replaceChildren(icon(isError ? 'alert' : 'check', 'toast-icon'), text('span', '', message));
   element.classList.toggle('error', isError);
   element.hidden = false;
   clearTimeout(toastTimer);
@@ -155,13 +159,29 @@ function safeDecode(ciphertext) {
   try { return decodePegasus(ciphertext); }
   catch { return 'Não foi possível interpretar esta mensagem.'; }
 }
+function previewIconName(message) {
+  if (!message) return null;
+  if (message.kind === 'image') return message.image?.mime === 'image/gif' ? 'gif' : 'image';
+  if (message.kind === 'audio') return message.file?.voice ? 'mic' : 'audio';
+  if (message.kind === 'document') return 'document';
+  if (message.kind === 'contact') return 'contact';
+  return null;
+}
+function typingElement(label, className = '') {
+  const element = text('span', `typing-text ${className}`.trim(), label.replace(/…$/, ''));
+  const dots = text('span', 'typing-dots', '');
+  dots.setAttribute('aria-hidden', 'true');
+  dots.append(document.createElement('i'), document.createElement('i'), document.createElement('i'));
+  element.append(dots);
+  return element;
+}
 function previewMessage(message) {
-  if (!message) return 'Diga olá! ✨';
+  if (!message) return 'Diga olá!';
   if (message.preview) return message.preview;
-  if (message.kind === 'image') return '🖼️ Imagem';
-  if (message.kind === 'audio') return message.file?.voice ? '🎤 Mensagem de voz' : '🎵 Áudio';
-  if (message.kind === 'document') return '📄 Documento';
-  if (message.kind === 'contact') return `👤 ${message.contact?.name || 'Contato'}`;
+  if (message.kind === 'image') return message.image?.mime === 'image/gif' ? 'GIF' : 'Imagem';
+  if (message.kind === 'audio') return message.file?.voice ? 'Mensagem de voz' : 'Áudio';
+  if (message.kind === 'document') return 'Documento';
+  if (message.kind === 'contact') return message.contact?.name || 'Contato';
   return safeDecode(message.ciphertext).replace(/\s+/g, ' ');
 }
 async function api(url, options = {}) {
@@ -199,7 +219,6 @@ function setAuthMode(mode) {
 function applyTheme(theme, persist = true) {
   state.theme = theme === 'light' ? 'light' : 'dark';
   document.documentElement.dataset.theme = state.theme;
-  $('#themeToggle').textContent = state.theme === 'dark' ? '☼' : '☾';
   $('#themeToggle').title = state.theme === 'dark' ? 'Ativar modo claro' : 'Ativar modo escuro';
   $('#themeToggle').setAttribute('aria-label', $('#themeToggle').title);
   const themeColor=document.querySelector('meta[name="theme-color"]');
@@ -263,6 +282,7 @@ function signOut(notify = true) {
   state.draftImage = null;
   $('#chatView').hidden = true;
   $('#authView').hidden = false;
+  state.listAnimated = false; state.knownMessageIds = new Set(); state.animatedConversationId = null;
   $('#messageInput').value = '';
   $('#authForm').reset();
   $('#chatView').classList.remove('chat-open');
@@ -275,8 +295,8 @@ function showContactContextMenu(conversation, x, y) {
   menu.replaceChildren();
   const group = isGroup(conversation);
 
-  function option(label, action, destructive = false) {
-    const button = text('button', destructive ? 'destructive' : '', label);
+  function option(iconName, label, action, destructive = false) {
+    const button = iconLabel('button', destructive ? 'destructive' : '', iconName, label);
     button.type = 'button';
     button.setAttribute('role', 'menuitem');
     button.addEventListener('click', async () => {
@@ -286,24 +306,24 @@ function showContactContextMenu(conversation, x, y) {
     menu.append(button);
   }
 
-  option(group ? 'Ver informações do grupo' : 'Ver Detalhes do Contato', async () => {
+  option('info', group ? 'Ver informações do grupo' : 'Ver Detalhes do Contato', async () => {
     await selectConversation(conversation.id);
     group ? openGroupInfo() : openContactDetails();
   });
-  option(conversation.pinned ? 'Desafixar conversa' : 'Fixar conversa', async () => {
+  option(conversation.pinned ? 'pin-off' : 'pin', conversation.pinned ? 'Desafixar conversa' : 'Fixar conversa', async () => {
     await api(`/api/conversations/${conversation.id}/preferences`, {method:'PUT',body:JSON.stringify({pinned:!conversation.pinned})});
     await refreshAll();
     showToast(conversation.pinned ? 'Conversa desafixada.' : 'Conversa fixada no topo.');
   });
-  option(conversation.archived ? 'Desarquivar Conversa' : 'Arquivar Conversa', async () => {
+  option(conversation.archived ? 'archive-restore' : 'archive', conversation.archived ? 'Desarquivar Conversa' : 'Arquivar Conversa', async () => {
     await api(`/api/conversations/${conversation.id}/preferences`, {method:'PUT',body:JSON.stringify({archived:!conversation.archived})});
     await refreshAll();
     showToast(conversation.archived ? 'Conversa desarquivada.' : 'Conversa arquivada.');
   });
   if (group) {
-    option('Sair do grupo', () => leaveGroup(conversation), true);
+    option('logout', 'Sair do grupo', () => leaveGroup(conversation), true);
   } else {
-    option('Excluir Contato', async () => {
+    option('user-minus', 'Excluir Contato', async () => {
       if (!await customConfirm('Excluir contato', `Excluir ${conversation.partner.name} e ocultar conversa?`)) return;
       await api(`/api/conversations/${conversation.id}/contact`, {method:'DELETE'});
       if (state.selectedId === conversation.id) closeConversationView();
@@ -364,7 +384,7 @@ async function refreshAll() {
   }
 }
 function setConversationAvatar(element, conversation) {
-  if (isGroup(conversation) && !conversation.partner.avatar) { element.replaceChildren(); element.textContent = '👥'; }
+  if (isGroup(conversation) && !conversation.partner.avatar) { element.replaceChildren(icon('group')); }
   else setAvatar(element, conversation.partner);
 }
 function renderChatHeader() {
@@ -372,7 +392,8 @@ function renderChatHeader() {
   if (!conversation) return;
   $('#partnerName').textContent = conversation.partner.name;
   const typing = typingLabel(conversation);
-  $('#partnerEmail').textContent = typing || conversation.partner.bio || conversation.partner.email;
+  if (typing) $('#partnerEmail').replaceChildren(typingElement(typing));
+  else $('#partnerEmail').textContent = conversation.partner.bio || conversation.partner.email;
   $('#partnerEmail').classList.toggle('typing-label', !!typing);
   setConversationAvatar($('#partnerAvatar'), conversation);
 }
@@ -389,10 +410,14 @@ function renderConversations() {
     list.append(text('p', 'sidebar-placeholder', query ? 'Nenhuma conversa encontrada.' : state.showArchived ? 'Nenhuma conversa arquivada.' : 'Nenhuma conversa ainda. Use o botão + para começar.'));
     return;
   }
+  const animateList = !state.listAnimated;
+  state.listAnimated = true;
+  let itemIndex = 0;
   for (const conversation of conversations) {
     const item = document.createElement('button');
     item.type = 'button';
     item.className = 'conversation-item';
+    if (animateList) { item.classList.add('item-enter'); item.style.setProperty('--i', String(Math.min(itemIndex++, 12))); }
     item.classList.toggle('selected', conversation.id === state.selectedId);
     item.addEventListener('click', () => selectConversation(conversation.id));
 
@@ -407,14 +432,14 @@ function renderConversations() {
     const content = text('div', 'conversation-text', '');
     const nameLine = text('div', 'conversation-name-row', '');
     nameLine.append(text('strong', '', conversation.partner.name));
-    if(conversation.pinned)nameLine.append(text('span','conversation-pinned-mark','⌖'));
-    if(conversation.archived)nameLine.append(text('span','conversation-archived-mark','▣'));
+    if(conversation.pinned){const mark=text('span','conversation-pinned-mark','');mark.title='Conversa fixada';mark.append(icon('pin'));nameLine.append(mark);}
+    if(conversation.archived){const mark=text('span','conversation-archived-mark','');mark.title='Conversa arquivada';mark.append(icon('archive'));nameLine.append(mark);}
     nameLine.append(text('time', '', conversation.lastMessage ? readableTime(conversation.lastMessage.createdAt) : ''));
     content.append(nameLine);
     const previewRow = text('div', 'conversation-preview-row', '');
     const typing = typingLabel(conversation);
     const draft = conversation.id !== state.selectedId ? state.drafts.get(conversation.id) : '';
-    if (typing) previewRow.append(text('span', 'conversation-preview typing-label', typing));
+    if (typing) previewRow.append(typingElement(typing, 'conversation-preview typing-label'));
     else if (draft) {
       previewRow.append(text('span', 'conversation-preview', ''));
       previewRow.firstChild.append(text('em', 'draft-tag', 'Rascunho: '), draft.replace(/\s+/g, ' ').slice(0, 80));
@@ -423,7 +448,11 @@ function renderConversations() {
       if (isGroup(conversation) && conversation.lastMessage && conversation.lastMessage.kind !== 'system') {
         preview = `${conversation.lastMessage.senderId === state.user.id ? 'Você' : (conversation.lastMessage.senderName || 'Alguém')}: ${preview}`;
       }
-      previewRow.append(text('span', 'conversation-preview', preview));
+      const previewSpan = text('span', 'conversation-preview', '');
+      const kindIcon = previewIconName(conversation.lastMessage);
+      if (kindIcon) previewSpan.append(icon(kindIcon, 'preview-icon'));
+      previewSpan.append(document.createTextNode(preview));
+      previewRow.append(previewSpan);
     }
     const unread = conversation.id === state.selectedId ? 0 : (conversation.unreadCount || 0);
     if (unread) previewRow.append(text('span', 'unread-badge', unread > 99 ? '99+' : String(unread)));
@@ -440,6 +469,7 @@ async function selectConversation(id) {
   if (!state.user) return;
   saveDraft();
   state.selectedId = id;
+  state.animatedConversationId = null;
   state.messages = [];
   const conversation = state.conversations.find(item => item.id === id);
   if (!conversation) { renderMessages(); return; }
@@ -494,7 +524,7 @@ function updateSelectionToolbar() {
   const count=state.selectedMessageIds.size;
   $('#selectionCount').textContent=`${count} ${count===1?'mensagem selecionada':'mensagens selecionadas'}`;
   const selected=state.messages.filter(m=>state.selectedMessageIds.has(m.id));
-  $('#selectionFavorite').textContent=selected.length&&selected.every(m=>m.isFavorite)?'★ Remover favoritos':'☆ Favoritar';
+  $('#selectionFavorite span').textContent=selected.length&&selected.every(m=>m.isFavorite)?'Remover favoritos':'Favoritar';
   $('#selectionForward').disabled=count===0;
   $('#selectionFavorite').disabled=count===0;
   $('#selectionDelete').disabled=count===0;
@@ -580,8 +610,8 @@ function showMessageContextMenu(message, x, y) {
   const menu = $('#messageContextMenu');
   menu.replaceChildren();
   const mine = message.senderId === state.user?.id;
-  function option(label, action, destructive = false) {
-    const button = text('button', destructive ? 'destructive' : '', label);
+  function option(iconName, label, action, destructive = false) {
+    const button = iconLabel('button', destructive ? 'destructive' : '', iconName, label);
     button.type = 'button';
     button.setAttribute('role', 'menuitem');
     button.addEventListener('click', async () => {
@@ -591,20 +621,20 @@ function showMessageContextMenu(message, x, y) {
     });
     menu.append(button);
   }
-  option('↩ Responder', () => setReplyTo(message));
-  option(message.isPinned ? '⌖ Desafixar mensagem' : '⌖ Fixar mensagem', async () => { await api(`/api/conversations/${message.conversationId}/messages/${message.id}/pin`,{method:'POST',body:JSON.stringify({pinned:!message.isPinned})}); await refreshMessages(); showToast(message.isPinned?'Mensagem desafixada.':'Mensagem fixada.'); });
-  option('☺ Reagir…', async () => { 
+  option('reply', 'Responder', () => setReplyTo(message));
+  option(message.isPinned ? 'pin-off' : 'pin', message.isPinned ? 'Desafixar mensagem' : 'Fixar mensagem', async () => { await api(`/api/conversations/${message.conversationId}/messages/${message.id}/pin`,{method:'POST',body:JSON.stringify({pinned:!message.isPinned})}); await refreshMessages(); showToast(message.isPinned?'Mensagem desafixada.':'Mensagem fixada.'); });
+  option('smile', 'Reagir…', async () => { 
     const emoji = await customReact(); 
     if(emoji === null) return; 
     const emojiTrimmed = emoji.trim(); 
     await api(`/api/conversations/${message.conversationId}/messages/${message.id}/reaction`,{method:'POST',body:JSON.stringify({emoji: emojiTrimmed})}); 
     await refreshMessages(); 
   });
-  option(message.isFavorite ? '★ Remover dos favoritos' : '☆ Adicionar aos favoritos', () => favoriteMessage(message,!message.isFavorite));
-  option('➦ Encaminhar', () => openForwardDialog([message.id]));
-  option('☷ Selecionar mensagem', () => startSelection(message.id));
+  option(message.isFavorite ? 'star-fill' : 'star', message.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos', () => favoriteMessage(message,!message.isFavorite));
+  option('forward', 'Encaminhar', () => openForwardDialog([message.id]));
+  option('select', 'Selecionar mensagem', () => startSelection(message.id));
   if (mine && message.kind === 'text') {
-    option('✎ Editar mensagem', () => {
+    option('edit', 'Editar mensagem', () => {
       state.editMessageId = message.id;
       $('#editMessageInput').value = safeDecode(message.ciphertext);
       $('#editMessageDialog').showModal();
@@ -612,17 +642,17 @@ function showMessageContextMenu(message, x, y) {
     });
   }
   if (message.kind === 'text') {
-    option('⧉ Copiar texto', async () => {
+    option('copy', 'Copiar texto', async () => {
       await navigator.clipboard.writeText(safeDecode(message.ciphertext));
       showToast('Texto copiado!');
     });
   } else if (message.kind === 'contact') {
-    option('⧉ Copiar código do contato', async () => {
+    option('copy', 'Copiar código do contato', async () => {
       await navigator.clipboard.writeText(message.contact.friendCode);
       showToast('Código copiado!');
     });
   } else {
-    option(message.kind === 'image' ? '↓ Salvar imagem' : '↓ Baixar arquivo', () => {
+    option('download', message.kind === 'image' ? 'Salvar imagem' : 'Baixar arquivo', () => {
       const file = message.kind === 'image' ? message.image : message.file;
       const download = document.createElement('a');
       download.href = file.dataUrl;
@@ -631,13 +661,13 @@ function showMessageContextMenu(message, x, y) {
     });
   }
   if (mine) {
-    option('⌫ Apagar para todos', async () => {
+    option('trash', 'Apagar para todos', async () => {
       if (!await customConfirm('Apagar para todos', 'Apagar esta mensagem para todos, sem aviso na conversa?')) return;
       await api(`/api/conversations/${message.conversationId}/messages/${message.id}`, { method: 'DELETE' });
       await refreshAll();
     }, true);
   } else {
-    option('⌫ Apagar só para mim', async () => {
+    option('trash', 'Apagar só para mim', async () => {
       await api(`/api/conversations/${message.conversationId}/messages/${message.id}/hide`, {
         method: 'POST', body: '{}',
       });
@@ -663,13 +693,17 @@ function renderMessages() {
   list.replaceChildren();
   if (!state.messages.length) {
     const empty = text('div', 'messages-empty', '');
-    empty.append(text('div', 'messages-empty-icon', '✧'));
+    const emptyIcon = text('div', 'messages-empty-icon', ''); emptyIcon.append(icon('sparkles')); empty.append(emptyIcon);
     empty.append(text('h3', '', 'Uma conversa só de vocês.'));
     empty.append(text('p', '', 'Envie a primeira mensagem ou compartilhe uma imagem para começar a história.'));
     list.append(empty);
     updateSelectionToolbar();
     return;
   }
+  const firstRender = state.animatedConversationId !== state.selectedId;
+  const known = state.knownMessageIds;
+  const firstVisibleIndex = Math.max(0, state.messages.length - 14);
+  let messageIndex = 0;
   let previousDate = '';
   for (const message of state.messages) {
     const date = readableDay(message.createdAt);
@@ -689,14 +723,17 @@ function renderMessages() {
     wrapper.dataset.messageId=String(message.id);
     wrapper.id=`message-${message.id}`;
     wrapper.classList.toggle('selected',state.selectedMessageIds.has(message.id));
+    if (firstRender) { if (messageIndex >= firstVisibleIndex) { wrapper.classList.add('message-enter'); wrapper.style.setProperty('--i', String(messageIndex - firstVisibleIndex)); } }
+    else if (!known.has(message.id)) wrapper.classList.add('message-new');
+    messageIndex++;
     const bubble = text('div', `message-bubble ${message.kind === 'image' ? 'image-bubble' : ''}`, '');
     if (groupChat && !mine) {
       const label = text('span', 'message-sender', message.senderName || memberName(message.senderId));
       label.style.color = `hsl(${(message.senderId * 47) % 360} 80% 74%)`;
       bubble.append(label);
     }
-    if (message.isPinned) bubble.append(text('span','message-forwarded-tag','⌖ Fixada'));
-    if (message.forwarded) bubble.append(text('span','message-forwarded-tag','↗ Encaminhada'));
+    if (message.isPinned) bubble.append(iconLabel('span','message-forwarded-tag','pin','Fixada'));
+    if (message.forwarded) bubble.append(iconLabel('span','message-forwarded-tag','forward','Encaminhada'));
     if (message.replyTo) {
       const quote=text('button','reply-quote','');quote.type='button';
       quote.append(text('strong','',message.replyTo.senderId===state.user.id?'Você':(groupChat?(message.replyTo.senderName||memberName(message.replyTo.senderId)):(state.currentPartner?.name||'Contato'))),
@@ -715,7 +752,7 @@ function renderMessages() {
       figure.append(img);
       bubble.append(figure);
     } else if (message.kind === 'audio') {
-      if (message.file?.voice) bubble.append(text('span', 'voice-message-tag', '🎤 Mensagem de voz'));
+      if (message.file?.voice) bubble.append(iconLabel('span', 'voice-message-tag', 'mic', 'Mensagem de voz'));
       const sound = document.createElement('audio');
       sound.controls = true;
       sound.preload = 'none';
@@ -728,11 +765,11 @@ function renderMessages() {
       link.className = 'message-document';
       link.href = message.file.dataUrl;
       link.download = message.file.name;
-      link.textContent = `📄 ${message.file.name}`;
+      link.append(icon('document'), text('span', '', message.file.name));
       bubble.append(link);
     } else if (message.kind === 'contact') {
       const card = text('div','message-contact','');
-      card.append(text('strong','',`👤 ${message.contact.name}`));
+      card.append(iconLabel('strong','','contact',message.contact.name));
       card.append(text('small','',`Código ${message.contact.friendCode}`));
       const open = text('button', '', 'Abrir contato');
       open.type = 'button';
@@ -757,12 +794,12 @@ function renderMessages() {
 
     const details = text('div', 'message-details', '');
     details.append(text('time', '', readableTime(message.createdAt)));
-    if(mine && !groupChat) details.append(text('span','message-read-status',message.readAt?'✓✓ Lida':'✓ Enviada'));
-    if (message.isFavorite) details.append(text('span','message-favorite-mark','★'));
+    if(mine && !groupChat) details.append(iconLabel('span',`message-read-status${message.readAt?' read':''}`,message.readAt?'check-all':'check',message.readAt?'Lida':'Enviada'));
+    if (message.isFavorite) {const mark=text('span','message-favorite-mark','');mark.title='Favorita';mark.append(icon('star-fill'));details.append(mark);}
     bubble.append(details);
     if(message.reactions?.length){
       const reactionRow=text('div','message-reactions','');
-      for(const reaction of message.reactions){const chip=text('button','reaction-chip',`${reaction.emoji} ${reaction.count}`);chip.type='button';chip.classList.toggle('mine',reaction.mine);chip.title=reaction.mine?'Remover sua reação':'Reagir com '+reaction.emoji;chip.addEventListener('click',async event=>{event.stopPropagation();await api(`/api/conversations/${message.conversationId}/messages/${message.id}/reaction`,{method:'POST',body:JSON.stringify({emoji:reaction.mine?'':reaction.emoji})});await refreshMessages();});reactionRow.append(chip);}
+      for(const reaction of message.reactions){const info=reactionInfo(reaction.emoji);const chip=text('button',`reaction-chip reaction-${info.tone}`,'');chip.append(icon(info.icon),text('span','',String(reaction.count)));chip.type='button';chip.classList.toggle('mine',reaction.mine);chip.title=reaction.mine?'Remover sua reação':'Reagir com '+info.label;chip.setAttribute('aria-label',`${info.label}: ${reaction.count}`);chip.addEventListener('click',async event=>{event.stopPropagation();await api(`/api/conversations/${message.conversationId}/messages/${message.id}/reaction`,{method:'POST',body:JSON.stringify({emoji:reaction.mine?'':reaction.emoji})});await refreshMessages();});reactionRow.append(chip);}
       bubble.append(reactionRow);
     }
     bubble.tabIndex = 0;
@@ -804,6 +841,8 @@ function renderMessages() {
     wrapper.append(bubble);
     list.append(wrapper);
   }
+  state.knownMessageIds = new Set(state.messages.map(m => m.id));
+  state.animatedConversationId = state.selectedId;
   updateSelectionToolbar();
 }
 async function jumpToMessage(messageId) {
@@ -840,7 +879,7 @@ function clearDraftImage(resetInput = true) {
   state.draftImage = null;
   state.draftAttachment = null;
   $('#composerMedia').hidden = true;
-  $('#attachmentPreview').replaceChildren('📎');
+  $('#attachmentPreview').replaceChildren(icon('attach'));
   $('#selectedImageName').textContent = '';
   if (resetInput) for (const id of ['imageInput','gifInput','audioInput','documentInput']) $('#'+id).value = '';
 }
@@ -861,7 +900,7 @@ function renderDraftAttachment() {
   if (!draft) return;
   state.draftImage = null;
   $('#composerMedia').hidden = false;
-  $('#attachmentPreview').replaceChildren(draft.kind === 'audio' ? '♫' : draft.kind === 'contact' ? '♧' : '▤');
+  $('#attachmentPreview').replaceChildren(icon(draft.kind === 'audio' ? 'audio' : draft.kind === 'contact' ? 'contact' : 'document'));
   $('#attachmentTitle').textContent = draft.kind === 'audio' ? 'Áudio preparado' : draft.kind === 'contact' ? 'Contato preparado' : 'Documento preparado';
   $('#selectedImageName').textContent = draft.kind === 'contact' ? draft.contact.name :
     `${draft.file.name} · ${Math.max(1, Math.round(draft.file.size / 1024))} KB`;
@@ -1130,6 +1169,9 @@ $('#removeImageButton').addEventListener('click', () => clearDraftImage());
 $('#messageForm').addEventListener('submit', async event => {
   event.preventDefault();
   if (!state.selectedId || !state.user) return;
+  const sendButton = $('#sendButton');
+  sendButton.classList.remove('is-sent'); void sendButton.offsetWidth; sendButton.classList.add('is-sent');
+  setTimeout(() => sendButton.classList.remove('is-sent'), 700);
   const input = $('#messageInput');
   const originalText = input.value;
   const draftImage = state.draftImage;
@@ -1273,7 +1315,7 @@ function renderContactMedia(){
     const button=text('button','contact-media-item','');button.type='button';
     if(message.kind==='image'){
       const img=document.createElement('img');img.src=message.image.dataUrl;img.alt='';button.append(img);
-    }else button.append(text('strong','',message.kind==='audio'?'♫':'▤'));
+    }else {const kindBadge=text('strong','','');kindBadge.append(icon(message.kind==='audio'?'audio':'document'));button.append(kindBadge);}
     const info=text('span','',message.kind==='image'?(message.image.mime==='image/gif'?'GIF':'Imagem'):message.file.name|| (message.kind==='audio'?'Áudio':'Documento'));
     info.append(text('small','',`${message.senderId===state.user.id?'Enviado por você':'Recebido'} · ${readableDay(message.createdAt)}`));
     button.append(info);
@@ -1457,7 +1499,7 @@ function avatarFromFile(file) {
 }
 function showGroupAvatar(element, avatar) {
   element.replaceChildren();
-  if (avatar) setAvatar(element, { name: 'G', avatar }); else element.textContent = '👥';
+  if (avatar) setAvatar(element, { name: 'G', avatar }); else element.replaceChildren(icon('group'));
 }
 function candidateContacts(excludeUserIds = []) {
   return state.conversations.filter(c => c.kind === 'direct' && !c.blockedByMe && !c.blockedByPartner && !excludeUserIds.includes(c.partner.id));
@@ -1564,7 +1606,7 @@ function renderGroupInfo() {
     info.append(text('strong', '', member.id === state.user.id ? `${member.name} (você)` : member.name));
     if (member.bio) info.append(text('small', '', member.bio));
     row.append(avatar, info);
-    if (member.role === 'admin') row.append(text('span', 'role-badge', 'Admin'));
+    if (member.role === 'admin') row.append(iconLabel('span', 'role-badge', 'crown', 'Admin'));
     if (admin && member.id !== state.user.id) {
       const actions = text('span', 'group-member-actions', '');
       const roleButton = text('button', 'mini-action', member.role === 'admin' ? 'Remover admin' : 'Tornar admin');

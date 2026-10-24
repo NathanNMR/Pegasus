@@ -70,13 +70,13 @@ test('mensagem de voz no mesmo histórico: autenticação, destinatário e segur
     });
     assert.equal(sent.status,201);
     assert.equal(sent.data.message.file.voice,true);
-    assert.equal(sent.data.message.preview,'🎤 Mensagem de voz');
+    assert.equal(sent.data.message.preview,'Mensagem de voz');
     const received=await b(`/api/conversations/${conversation}/messages`);
     assert.equal(received.status,200);
     assert.equal(received.data.messages.length,1);
     assert.equal(received.data.messages[0].file.voice,true);
     assert.equal(received.data.messages[0].file.dataUrl,dataUrl);
-    assert.equal((await b('/api/conversations')).data.conversations[0].lastMessage.preview,'🎤 Mensagem de voz');
+    assert.equal((await b('/api/conversations')).data.conversations[0].lastMessage.preview,'Mensagem de voz');
     assert.equal((await stranger(`/api/conversations/${conversation}/messages`)).status,404);
     const invalid=await a(`/api/conversations/${conversation}/messages`,'POST',{
       kind:'audio',file:{name:'voz-invalida.webm',dataUrl,voice:true},

@@ -2,11 +2,12 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#09162f" />
   <meta name="description" content="Pegasus — conversas de texto e imagens em uma interface galáctica." />
   <link rel="icon" href="/favicon.png?v=9" type="image/png" />
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/motion.css" />
   <title>Pegasus — Mensagens</title>
   
   <script type="module" src="/app.js"></script>
@@ -28,25 +29,25 @@
         <span>PEGASUS</span>
       </div>
       <div class="story-content">
-        <span class="eyebrow"><span class="sparkle">✧</span> TEXTO E IMAGENS</span>
+        <span class="eyebrow"><span class="sparkle"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-sparkles"/></svg></span> TEXTO E IMAGENS</span>
         <h1>Conversas sob a<br /><em>constelação de Pegasus.</em></h1>
         <p>Um espaço para suas mensagens, agora com visual mais azul, alinhamento clássico de chat e envio de imagens na primeira evolução do projeto.</p>
-        <div class="hero-features"><span>✧ Chat em tempo real</span><span>✧ Envio de imagens</span><span>✧ Conversas privadas</span></div>
+        <div class="hero-features"><span><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-zap"/></svg> Chat em tempo real</span><span><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-image"/></svg> Envio de imagens</span><span><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-lock"/></svg> Conversas privadas</span></div>
       </div>
-      <div class="story-art" aria-hidden="true"><span class="star-a">✦</span><span class="star-b">✧</span><span class="art-letter">P</span></div>
+      <div class="story-art" aria-hidden="true"><span class="star-a"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-star-small"/></svg></span><span class="star-b"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-sparkles"/></svg></span><span class="art-letter">P</span></div>
       <div class="story-bottom"><span>EST. 2026</span><span>GALÁXIA · PEGASUS · MENSAGENS</span></div>
     </div>
 
     <div class="auth-panel glass">
-      <div class="auth-heading"><span class="auth-emblem">✦</span><span class="eyebrow">BEM-VINDO AO PEGASUS</span><h2 id="authTitle">Entre no seu universo.</h2><p id="authSubtitle">Entre com sua conta para continuar suas conversas.</p></div>
+      <div class="auth-heading"><span class="auth-emblem"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-galaxy"/></svg></span><span class="eyebrow">BEM-VINDO AO PEGASUS</span><h2 id="authTitle">Entre no seu universo.</h2><p id="authSubtitle">Entre com sua conta para continuar suas conversas.</p></div>
       <div class="auth-tabs" role="tablist" aria-label="Tipo de acesso"><button id="loginTab" type="button" class="auth-tab active" role="tab" aria-selected="true">Entrar</button><button id="registerTab" type="button" class="auth-tab" role="tab" aria-selected="false">Criar conta</button></div>
       <form id="authForm" class="form-stack" autocomplete="on">
         <label id="nameGroup" class="field-group" hidden><span>Como podemos chamar você?</span><input id="nameInput" name="name" type="text" placeholder="Seu nome" minlength="2" maxlength="60" autocomplete="name" /></label>
         <label class="field-group"><span>E-mail</span><input id="emailInput" name="email" type="email" placeholder="voce@exemplo.com" required autocomplete="email" /></label>
         <label class="field-group"><span>Senha</span><input id="passwordInput" name="password" type="password" placeholder="Pelo menos 8 caracteres" minlength="8" required autocomplete="current-password" /></label>
-        <button id="authSubmit" class="primary-button auth-submit" type="submit"><span>Entrar no Pegasus</span><span aria-hidden="true">↗</span></button>
+        <button id="authSubmit" class="primary-button auth-submit" type="submit"><span>Entrar no Pegasus</span><svg class="icon arrow" aria-hidden="true" focusable="false"><use href="/icons.svg#i-arrow-up-right"/></svg></button>
       </form>
-      <div class="auth-foot"><span class="shield-symbol">✧</span><span>Sua conta é protegida por senha e as mensagens ficam protegidas no armazenamento do servidor.</span></div>
+      <div class="auth-foot"><span class="shield-symbol"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-shield"/></svg></span><span>Sua conta é protegida por senha e as mensagens ficam protegidas no armazenamento do servidor.</span></div>
     </div>
   </section>
 
@@ -59,36 +60,36 @@
         </div>
         
       </div>
-      <div class="inbox-heading"><div><span class="eyebrow">SEU ESPAÇO</span><h2>Mensagens<span class="heading-spark">✧</span></h2></div><button id="favoritesButton" type="button" class="request-button" aria-label="Mensagens favoritas" title="Mensagens favoritas">☆</button><button id="archiveToggle" type="button" class="request-button" aria-label="Conversas arquivadas" title="Conversas arquivadas">▣</button><button id="requestsButton" type="button" class="request-button" aria-label="Solicitações de conversa" title="Solicitações de conversa">✉ <span id="requestsCount" hidden>0</span></button><button id="newChatButton" type="button" class="add-button" aria-label="Nova conversa" title="Nova conversa">+</button></div>
+      <div class="inbox-heading"><div><span class="eyebrow">SEU ESPAÇO</span><h2>Mensagens<span class="heading-spark"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-sparkles"/></svg></span></h2></div><button id="favoritesButton" type="button" class="request-button" aria-label="Mensagens favoritas" title="Mensagens favoritas"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-star"/></svg></button><button id="archiveToggle" type="button" class="request-button" aria-label="Conversas arquivadas" title="Conversas arquivadas"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-archive"/></svg></button><button id="requestsButton" type="button" class="request-button" aria-label="Solicitações de conversa" title="Solicitações de conversa"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-inbox"/></svg><span id="requestsCount" hidden>0</span></button><button id="newChatButton" type="button" class="add-button" aria-label="Nova conversa" title="Nova conversa"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-plus"/></svg></button></div>
       <label class="search-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6"/><path d="m16 16 5 5"/></svg><input id="searchInput" type="search" placeholder="Buscar conversa" aria-label="Buscar conversa" /></label>
       <div class="list-label"><span>SUAS CONVERSAS</span><span id="chatCount">00</span></div>
       <div id="conversationList" class="conversation-list"><p class="sidebar-placeholder">Suas conversas vão aparecer aqui.</p></div>
-      <div class="sidebar-bottom"><div class="account-avatar" id="myAvatar">P</div><div class="account-details"><strong id="myName">Minha conta</strong><span id="myEmail">Pegasus</span><button id="copyCodeButton" class="code-chip" type="button" title="Copiar código de contato"><span>Seu código: </span><strong id="myCode">······</strong> ⧉</button></div><button type="button" id="themeToggle" class="logout-button" title="Alternar tema claro/escuro" aria-label="Alternar tema">☼</button><button type="button" id="profileButton" class="logout-button" title="Meu perfil e privacidade" aria-label="Abrir perfil">⚙</button><button type="button" id="logoutButton" class="logout-button" title="Sair" aria-label="Sair da conta"><svg viewBox="0 0 24 24"><path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M14 8l5 4-5 4M8 12h11"/></svg></button></div>
+      <div class="sidebar-bottom"><div class="account-avatar" id="myAvatar">P</div><div class="account-details"><strong id="myName">Minha conta</strong><span id="myEmail">Pegasus</span><button id="copyCodeButton" class="code-chip" type="button" title="Copiar código de contato"><span>Seu código: </span><strong id="myCode">······</strong> <svg class="icon icon-xs" aria-hidden="true" focusable="false"><use href="/icons.svg#i-copy"/></svg></button></div><button type="button" id="themeToggle" class="logout-button" title="Alternar tema claro/escuro" aria-label="Alternar tema"><svg class="icon theme-sun" aria-hidden="true" focusable="false"><use href="/icons.svg#i-sun"/></svg><svg class="icon theme-moon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-moon"/></svg></button><button type="button" id="profileButton" class="logout-button" title="Meu perfil e privacidade" aria-label="Abrir perfil"><svg class="icon spin-on-hover" aria-hidden="true" focusable="false"><use href="/icons.svg#i-settings"/></svg></button><button type="button" id="logoutButton" class="logout-button" title="Sair" aria-label="Sair da conta"><svg viewBox="0 0 24 24"><path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M14 8l5 4-5 4M8 12h11"/></svg></button></div>
     </aside>
 
     <main class="chat-main" aria-label="Área de mensagens">
-      <section class="welcome-screen" id="welcomeScreen"><div class="welcome-symbol" aria-hidden="true"><img src="/pegasus-logo.png" alt="" /></div><span class="eyebrow">O COMEÇO DE UMA CONVERSA</span><h2>Toda história começa<br /><em>com uma mensagem.</em></h2><p>Escolha uma conversa ao lado ou encontre alguém pelo e-mail para começar. Agora você também pode compartilhar imagens.</p><button id="welcomeNewChat" class="primary-button" type="button">Nova conversa <span aria-hidden="true">↗</span></button><div class="welcome-decoration" aria-hidden="true">❧ ─── ✧ ─── ❧</div></section>
+      <section class="welcome-screen" id="welcomeScreen"><div class="welcome-symbol" aria-hidden="true"><img src="/pegasus-logo.png" alt="" /></div><span class="eyebrow">O COMEÇO DE UMA CONVERSA</span><h2>Toda história começa<br /><em>com uma mensagem.</em></h2><p>Escolha uma conversa ao lado ou encontre alguém pelo e-mail para começar. Agora você também pode compartilhar imagens.</p><button id="welcomeNewChat" class="primary-button" type="button">Nova conversa <svg class="icon arrow" aria-hidden="true" focusable="false"><use href="/icons.svg#i-arrow-up-right"/></svg></button><div class="welcome-decoration" aria-hidden="true"><span class="deco-line"></span><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-sparkles"/></svg><span class="deco-line"></span></div></section>
       <section id="conversationView" class="conversation-view" hidden>
-        <header class="chat-header"><button id="backButton" type="button" class="back-button" title="Voltar às conversas" aria-label="Voltar às conversas">←</button><button id="contactDetailsButton" class="contact-header-button" type="button" aria-label="Abrir informações do contato"><div id="partnerAvatar" class="contact-avatar large">A</div><div class="contact-meta"><strong id="partnerName">Contato</strong><span id="partnerEmail">Conversa no Pegasus</span></div></button><div class="header-action"><button id="searchMessagesButton" class="header-tool-button" type="button" title="Buscar mensagens">⌕</button><button id="pinnedMessagesButton" class="header-tool-button" type="button" title="Mensagens fixadas">⌖</button><span class="secure-badge">✧ Conversa privada</span></div></header>
-        <div id="selectionToolbar" class="selection-toolbar" hidden><strong id="selectionCount">0 selecionadas</strong><button id="selectionFavorite" type="button">☆ Favoritar</button><button id="selectionForward" type="button">➦ Encaminhar</button><button id="selectionDelete" type="button" class="danger-button">Excluir</button><button id="selectionCancel" type="button" aria-label="Cancelar seleção">Cancelar</button></div>
+        <header class="chat-header"><button id="backButton" type="button" class="back-button" title="Voltar às conversas" aria-label="Voltar às conversas"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-back"/></svg></button><button id="contactDetailsButton" class="contact-header-button" type="button" aria-label="Abrir informações do contato"><div id="partnerAvatar" class="contact-avatar large">A</div><div class="contact-meta"><strong id="partnerName">Contato</strong><span id="partnerEmail">Conversa no Pegasus</span></div></button><div class="header-action"><button id="searchMessagesButton" class="header-tool-button" type="button" title="Buscar mensagens" aria-label="Buscar mensagens"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-search"/></svg></button><button id="pinnedMessagesButton" class="header-tool-button" type="button" title="Mensagens fixadas" aria-label="Mensagens fixadas"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-pin"/></svg></button><span class="secure-badge"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-lock"/></svg> Conversa privada</span></div></header>
+        <div id="selectionToolbar" class="selection-toolbar" hidden><strong id="selectionCount">0 selecionadas</strong><button id="selectionFavorite" type="button"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-star"/></svg><span>Favoritar</span></button><button id="selectionForward" type="button"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-forward"/></svg><span>Encaminhar</span></button><button id="selectionDelete" type="button" class="danger-button">Excluir</button><button id="selectionCancel" type="button" aria-label="Cancelar seleção">Cancelar</button></div>
         <div id="messageList" class="message-list" role="log" aria-label="Mensagens desta conversa" aria-live="polite"></div>
         <div class="composer-area">
-          <div id="replyComposer" class="reply-composer glass-inset" hidden><div class="reply-composer-mark"></div><div class="reply-composer-content"><strong id="replyComposerName">Respondendo</strong><span id="replyComposerText"></span></div><button id="cancelReplyButton" type="button" aria-label="Cancelar resposta">×</button></div>
+          <div id="replyComposer" class="reply-composer glass-inset" hidden><div class="reply-composer-mark"></div><div class="reply-composer-content"><strong id="replyComposerName">Respondendo</strong><span id="replyComposerText"></span></div><button id="cancelReplyButton" type="button" aria-label="Cancelar resposta"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-close"/></svg></button></div>
           <div id="composerMedia" class="composer-media glass-inset" hidden>
-            <div id="attachmentPreview" class="attachment-preview" aria-hidden="true">📎</div>
+            <div id="attachmentPreview" class="attachment-preview" aria-hidden="true"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-attach"/></svg></div>
             <div class="composer-media-info"><strong id="attachmentTitle">Arquivo preparado</strong><span id="selectedImageName"></span></div>
-            <button id="removeImageButton" type="button" class="remove-media-button" aria-label="Remover anexo">×</button>
+            <button id="removeImageButton" type="button" class="remove-media-button" aria-label="Remover anexo"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-close"/></svg></button>
           </div>
           <div id="attachmentMenu" class="attachment-popover glass" hidden aria-label="Opções de anexo">
             <div id="attachmentOptions" class="attachment-options">
-              <button type="button" data-attach="image"><span>▧</span> Imagem</button>
-              <button type="button" data-attach="gif"><span>▣</span> GIF</button>
-              <button type="button" data-attach="audio"><span>♫</span> Áudio</button>
-              <button type="button" data-attach="document"><span>▤</span> Documento</button>
-              <button type="button" data-attach="contact"><span>♧</span> Contato de alguém</button>
+              <button type="button" data-attach="image"><span class="attach-icon attach-image"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-image"/></svg></span><span>Imagem</span></button>
+              <button type="button" data-attach="gif"><span class="attach-icon attach-gif"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-gif"/></svg></span><span>GIF</span></button>
+              <button type="button" data-attach="audio"><span class="attach-icon attach-audio"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-audio"/></svg></span><span>Áudio</span></button>
+              <button type="button" data-attach="document"><span class="attach-icon attach-document"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-document"/></svg></span><span>Documento</span></button>
+              <button type="button" data-attach="contact"><span class="attach-icon attach-contact"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-contact"/></svg></span><span>Contato de alguém</span></button>
             </div>
             <div id="contactPicker" class="contact-picker" hidden>
-              <div class="contact-picker-heading"><button id="backToAttachments" type="button" aria-label="Voltar para anexos">←</button><strong>Compartilhar contato</strong></div>
+              <div class="contact-picker-heading"><button id="backToAttachments" type="button" aria-label="Voltar para anexos"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-back"/></svg></button><strong>Compartilhar contato</strong></div>
               <p>Escolha uma pessoa de suas conversas.</p>
               <div id="shareContactsList" class="contact-picker-list"></div>
             </div>
@@ -97,7 +98,7 @@
             <div class="voice-status-line"><span id="voiceIndicator" class="voice-record-dot" aria-hidden="true" hidden></span><strong id="voiceStatus">Gravando mensagem de voz</strong><time id="voiceTimer">00:00</time></div>
             <div class="voice-actions">
               <button id="voiceDiscardButton" class="voice-action-cancel" type="button">Cancelar gravação</button>
-              <button id="voiceStopButton" class="voice-action-stop" type="button" hidden>■ Parar e enviar</button>
+              <button id="voiceStopButton" class="voice-action-stop" type="button" hidden><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-stop"/></svg><span>Parar e enviar</span></button>
             </div>
           </div>
           <form id="messageForm" class="composer glass-inset">
@@ -120,26 +121,26 @@
     </main>
   </section>
 
-  <dialog id="newChatDialog" class="new-chat-dialog glass"><form id="newChatForm" method="dialog"><button id="closeDialog" type="button" class="dialog-close" aria-label="Fechar">×</button><div class="dialog-sigil">✧</div><span class="eyebrow">CRIAR CONEXÃO</span><h2>Uma nova conversa.</h2><p>Encontre outra pessoa pelo e-mail ou pelo código Pegasus de seis caracteres.</p>
+  <dialog id="newChatDialog" class="new-chat-dialog glass"><form id="newChatForm" method="dialog"><button id="closeDialog" type="button" class="dialog-close" aria-label="Fechar"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-close"/></svg></button><div class="dialog-sigil"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-sparkles"/></svg></div><span class="eyebrow">CRIAR CONEXÃO</span><h2>Uma nova conversa.</h2><p>Encontre outra pessoa pelo e-mail ou pelo código Pegasus de seis caracteres.</p>
     <div class="contact-mode"><button id="modeEmail" type="button" class="contact-mode-button active">Por e-mail</button><button id="modeCode" type="button" class="contact-mode-button">Por código</button></div>
     <label id="contactEmailGroup" class="field-group"><span>E-mail do contato</span><input id="contactEmail" type="email" required placeholder="amigo@exemplo.com" /></label>
-    <label id="contactCodeGroup" class="field-group" hidden><span>Código Pegasus</span><input id="contactCode" type="text" pattern="[A-Za-z0-9]{6}" minlength="6" maxlength="6" autocomplete="off" placeholder="A7K3M9" /></label><button id="createChatSubmit" type="submit" class="primary-button">Iniciar ou solicitar conversa <span aria-hidden="true">↗</span></button><button id="openGroupCreate" type="button" class="soft-button group-create-link">👥 Criar um grupo</button></form></dialog>
+    <label id="contactCodeGroup" class="field-group" hidden><span>Código Pegasus</span><input id="contactCode" type="text" pattern="[A-Za-z0-9]{6}" minlength="6" maxlength="6" autocomplete="off" placeholder="A7K3M9" /></label><button id="createChatSubmit" type="submit" class="primary-button">Iniciar ou solicitar conversa <svg class="icon arrow" aria-hidden="true" focusable="false"><use href="/icons.svg#i-arrow-up-right"/></svg></button><button id="openGroupCreate" type="button" class="soft-button group-create-link"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-group"/></svg><span>Criar um grupo</span></button></form></dialog>
   <dialog id="contactDialog" class="mini-modal glass contact-dialog" aria-label="Informações do contato">
-    <div class="mini-modal-content"><header class="profile-heading"><div class="contact-detail-heading"><div id="contactDetailAvatar" class="contact-avatar large">P</div><div><span class="eyebrow">DETALHES DA CONVERSA</span><h2 id="contactDetailTitle">Contato</h2><p id="contactDetailBio"></p></div></div><button id="closeContactDialog" type="button" class="dialog-close-inline" aria-label="Fechar">×</button></header>
+    <div class="mini-modal-content"><header class="profile-heading"><div class="contact-detail-heading"><div id="contactDetailAvatar" class="contact-avatar large">P</div><div><span class="eyebrow">DETALHES DA CONVERSA</span><h2 id="contactDetailTitle">Contato</h2><p id="contactDetailBio"></p></div></div><button id="closeContactDialog" type="button" class="dialog-close-inline" aria-label="Fechar"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-close"/></svg></button></header>
       <div class="contact-detail-grid"><div><small>E-mail</small><strong id="contactDetailEmail"></strong><button id="copyContactEmail" class="text-button" type="button">Copiar e-mail</button></div><div><small>Código Pegasus</small><strong id="contactDetailCode"></strong><button id="copyContactCode" class="text-button" type="button">Copiar código</button></div><div><small>Conversa iniciada em</small><strong id="contactDetailStarted"></strong></div></div>
       <label class="field-group"><span>Apelido deste contato</span><input id="contactAliasInput" maxlength="40" placeholder="Ex.: Dani da faculdade" /></label>
       <label class="field-group"><span>Mensagens que você enviar</span><select id="disappearingSeconds"><option value="0">Não expiram</option><option value="3600">Após 1 hora</option><option value="86400">Após 24 horas</option><option value="604800">Após 7 dias</option></select><small>O prazo começa quando cada mensagem é enviada por você.</small></label>
       <button id="archiveContactButton" type="button" class="soft-button">Arquivar conversa</button>
       <label class="notification-setting"><input id="contactNotificationsEnabled" type="checkbox" checked /><span><strong>Notificações desta conversa</strong><small>Permitir notificações do navegador quando houver novas mensagens.</small></span></label>
       <div class="contact-media-section"><div class="section-heading"><h3>Gerenciar arquivos</h3><span id="contactMediaCount">0 arquivos</span></div><div id="contactMediaList" class="contact-media-list"></div></div>
-      <button id="saveContactPreferences" type="button" class="primary-button">Salvar apelido e notificações <span>✓</span></button>
+      <button id="saveContactPreferences" type="button" class="primary-button">Salvar apelido e notificações <svg class="icon arrow" aria-hidden="true" focusable="false"><use href="/icons.svg#i-check"/></svg></button>
       <div class="contact-danger-actions"><button id="clearConversationButton" type="button">Limpar conversa</button><button id="blockContactButton" type="button">Bloquear contato</button><button id="deleteContactButton" type="button">Excluir contato</button></div>
     </div>
   </dialog>
   <dialog id="groupCreateDialog" class="mini-modal glass profile-dialog group-dialog" aria-label="Criar grupo">
     <form id="groupCreateForm" class="mini-modal-content">
-      <header class="profile-heading"><div><span class="eyebrow">NOVO GRUPO</span><h2>Criar grupo</h2></div><button id="closeGroupCreate" type="button" class="dialog-close-inline" aria-label="Fechar">×</button></header>
-      <div class="profile-photo-row"><div id="groupCreatePreview" class="account-avatar profile-photo">👥</div><div><label for="groupCreateAvatarInput" class="soft-button profile-photo-label">Foto do grupo</label><input id="groupCreateAvatarInput" type="file" accept="image/png,image/jpeg,image/webp" hidden /><button id="groupCreateRemoveAvatar" type="button" class="text-button">Remover foto</button></div></div>
+      <header class="profile-heading"><div><span class="eyebrow">NOVO GRUPO</span><h2>Criar grupo</h2></div><button id="closeGroupCreate" type="button" class="dialog-close-inline" aria-label="Fechar"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-close"/></svg></button></header>
+      <div class="profile-photo-row"><div id="groupCreatePreview" class="account-avatar profile-photo"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-group"/></svg></div><div><label for="groupCreateAvatarInput" class="soft-button profile-photo-label">Foto do grupo</label><input id="groupCreateAvatarInput" type="file" accept="image/png,image/jpeg,image/webp" hidden /><button id="groupCreateRemoveAvatar" type="button" class="text-button">Remover foto</button></div></div>
       <label class="field-group"><span>Nome do grupo</span><input id="groupCreateTitle" maxlength="60" required autocomplete="off" placeholder="Ex.: Galáxia dos amigos" /></label>
       <label class="field-group"><span>Descrição (opcional)</span><textarea id="groupCreateDescription" rows="2" maxlength="200" placeholder="Sobre o que é este grupo?"></textarea></label>
       <div class="group-picker">
@@ -147,14 +148,14 @@
         <input id="groupCreateFilter" class="group-filter" type="search" autocomplete="off" placeholder="Buscar nos seus contatos" aria-label="Buscar contatos" />
         <div id="groupCreateContacts" class="group-contact-list"></div>
       </div>
-      <button id="groupCreateSubmit" type="submit" class="primary-button">Criar grupo <span>✓</span></button>
+      <button id="groupCreateSubmit" type="submit" class="primary-button">Criar grupo <svg class="icon arrow" aria-hidden="true" focusable="false"><use href="/icons.svg#i-check"/></svg></button>
     </form>
   </dialog>
   <dialog id="groupInfoDialog" class="mini-modal glass profile-dialog group-dialog" aria-label="Informações do grupo">
     <div class="mini-modal-content">
-      <header class="profile-heading"><div class="contact-detail-heading"><div id="groupInfoAvatar" class="contact-avatar large">👥</div><div><span class="eyebrow">GRUPO</span><h2 id="groupInfoTitle">Grupo</h2><p id="groupInfoDescription"></p></div></div><button id="closeGroupInfo" type="button" class="dialog-close-inline" aria-label="Fechar">×</button></header>
+      <header class="profile-heading"><div class="contact-detail-heading"><div id="groupInfoAvatar" class="contact-avatar large"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-group"/></svg></div><div><span class="eyebrow">GRUPO</span><h2 id="groupInfoTitle">Grupo</h2><p id="groupInfoDescription"></p></div></div><button id="closeGroupInfo" type="button" class="dialog-close-inline" aria-label="Fechar"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-close"/></svg></button></header>
       <div id="groupAdminEdit" class="group-admin-edit" hidden>
-        <div class="profile-photo-row"><div id="groupEditPreview" class="account-avatar profile-photo">👥</div><div><label for="groupEditAvatarInput" class="soft-button profile-photo-label">Alterar foto</label><input id="groupEditAvatarInput" type="file" accept="image/png,image/jpeg,image/webp" hidden /><button id="groupEditRemoveAvatar" type="button" class="text-button">Remover foto</button></div></div>
+        <div class="profile-photo-row"><div id="groupEditPreview" class="account-avatar profile-photo"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-group"/></svg></div><div><label for="groupEditAvatarInput" class="soft-button profile-photo-label">Alterar foto</label><input id="groupEditAvatarInput" type="file" accept="image/png,image/jpeg,image/webp" hidden /><button id="groupEditRemoveAvatar" type="button" class="text-button">Remover foto</button></div></div>
         <label class="field-group"><span>Nome do grupo</span><input id="groupEditTitle" maxlength="60" autocomplete="off" /></label>
         <label class="field-group"><span>Descrição</span><textarea id="groupEditDescription" rows="2" maxlength="200"></textarea></label>
         <button id="groupEditSave" type="button" class="soft-button">Salvar informações do grupo</button>
@@ -168,14 +169,14 @@
       </div>
       <label class="notification-setting"><input id="groupNotificationsEnabled" type="checkbox" checked /><span><strong>Notificações do grupo</strong><small>Permitir notificações do navegador quando houver novas mensagens.</small></span></label>
       <label class="field-group"><span>Mensagens que você enviar</span><select id="groupDisappearingSeconds" class="group-select"><option value="0">Não expiram</option><option value="3600">Após 1 hora</option><option value="86400">Após 24 horas</option><option value="604800">Após 7 dias</option></select></label>
-      <button id="groupSavePrefs" type="button" class="primary-button">Salvar preferências <span>✓</span></button>
+      <button id="groupSavePrefs" type="button" class="primary-button">Salvar preferências <svg class="icon arrow" aria-hidden="true" focusable="false"><use href="/icons.svg#i-check"/></svg></button>
       <div class="contact-danger-actions"><button id="groupClearButton" type="button">Limpar conversa</button><button id="groupLeaveButton" type="button">Sair do grupo</button></div>
     </div>
   </dialog>
-  <dialog id="forwardDialog" class="mini-modal glass" aria-label="Encaminhar mensagens"><div class="mini-modal-content"><header class="profile-heading"><div><span class="eyebrow">COMPARTILHAR</span><h2>Encaminhar mensagens</h2><p id="forwardCountLabel">Selecione uma conversa de destino.</p></div><button id="closeForwardDialog" type="button" class="dialog-close-inline" aria-label="Fechar">×</button></header><div id="forwardConversationList" class="forward-conversation-list"></div><button id="cancelForwardButton" type="button" class="soft-button">Cancelar</button></div></dialog>
-  <dialog id="favoritesDialog" class="mini-modal glass favorites-dialog" aria-label="Mensagens favoritas"><div class="mini-modal-content"><header class="profile-heading"><div><span class="eyebrow">SUA COLEÇÃO</span><h2>Mensagens favoritas</h2></div><button id="closeFavoritesDialog" type="button" class="dialog-close-inline" aria-label="Fechar">×</button></header><div id="favoritesList" class="favorites-list"></div></div></dialog>
-  <dialog id="searchMessagesDialog" class="mini-modal glass" aria-label="Buscar mensagens"><div class="mini-modal-content"><header class="profile-heading"><div><span class="eyebrow">PESQUISA</span><h2>Buscar mensagens</h2><p>Encontre texto no histórico das suas conversas.</p></div><button id="closeSearchMessages" type="button" class="dialog-close-inline" aria-label="Fechar">×</button></header><form id="searchMessagesForm" class="search-message-form"><input id="searchMessagesInput" minlength="2" maxlength="100" placeholder="Digite uma palavra ou frase" required /><button class="primary-button" type="submit">Buscar</button></form><div id="searchMessagesResults" class="favorites-list"></div></div></dialog>
-  <dialog id="pinnedMessagesDialog" class="mini-modal glass" aria-label="Mensagens fixadas"><div class="mini-modal-content"><header class="profile-heading"><div><span class="eyebrow">ACESSO RÁPIDO</span><h2>Mensagens fixadas</h2></div><button id="closePinnedMessages" type="button" class="dialog-close-inline" aria-label="Fechar">×</button></header><div id="pinnedMessagesList" class="favorites-list"></div></div></dialog>
+  <dialog id="forwardDialog" class="mini-modal glass" aria-label="Encaminhar mensagens"><div class="mini-modal-content"><header class="profile-heading"><div><span class="eyebrow">COMPARTILHAR</span><h2>Encaminhar mensagens</h2><p id="forwardCountLabel">Selecione uma conversa de destino.</p></div><button id="closeForwardDialog" type="button" class="dialog-close-inline" aria-label="Fechar"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-close"/></svg></button></header><div id="forwardConversationList" class="forward-conversation-list"></div><button id="cancelForwardButton" type="button" class="soft-button">Cancelar</button></div></dialog>
+  <dialog id="favoritesDialog" class="mini-modal glass favorites-dialog" aria-label="Mensagens favoritas"><div class="mini-modal-content"><header class="profile-heading"><div><span class="eyebrow">SUA COLEÇÃO</span><h2>Mensagens favoritas</h2></div><button id="closeFavoritesDialog" type="button" class="dialog-close-inline" aria-label="Fechar"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-close"/></svg></button></header><div id="favoritesList" class="favorites-list"></div></div></dialog>
+  <dialog id="searchMessagesDialog" class="mini-modal glass" aria-label="Buscar mensagens"><div class="mini-modal-content"><header class="profile-heading"><div><span class="eyebrow">PESQUISA</span><h2>Buscar mensagens</h2><p>Encontre texto no histórico das suas conversas.</p></div><button id="closeSearchMessages" type="button" class="dialog-close-inline" aria-label="Fechar"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-close"/></svg></button></header><form id="searchMessagesForm" class="search-message-form"><input id="searchMessagesInput" minlength="2" maxlength="100" placeholder="Digite uma palavra ou frase" required /><button class="primary-button" type="submit">Buscar</button></form><div id="searchMessagesResults" class="favorites-list"></div></div></dialog>
+  <dialog id="pinnedMessagesDialog" class="mini-modal glass" aria-label="Mensagens fixadas"><div class="mini-modal-content"><header class="profile-heading"><div><span class="eyebrow">ACESSO RÁPIDO</span><h2>Mensagens fixadas</h2></div><button id="closePinnedMessages" type="button" class="dialog-close-inline" aria-label="Fechar"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-close"/></svg></button></header><div id="pinnedMessagesList" class="favorites-list"></div></div></dialog>
   <dialog id="editMessageDialog" class="mini-modal glass" aria-label="Editar mensagem">
     <form id="editMessageForm" class="mini-modal-content"><h2>Editar mensagem</h2><p>Atualize seu texto sem deixar avisos no chat.</p>
       <textarea id="editMessageInput" maxlength="4000" rows="4" required aria-label="Novo texto da mensagem"></textarea>
@@ -183,13 +184,13 @@
     </form>
   </dialog>
   <dialog id="imageEditorDialog" class="editor-modal glass" aria-label="Editar arquivo antes do envio">
-    <div class="editor-header"><div><span class="eyebrow">PEGASUS STUDIO</span><h2>Editar imagem</h2><p id="editInfo"></p></div><button id="editCloseButton" class="close-editor" type="button" aria-label="Fechar editor">×</button></div>
+    <div class="editor-header"><div><span class="eyebrow">PEGASUS STUDIO</span><h2>Editar imagem</h2><p id="editInfo"></p></div><button id="editCloseButton" class="close-editor" type="button" aria-label="Fechar editor"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-close"/></svg></button></div>
     <div class="editor-body">
       <div class="editor-tools">
         <div class="editor-toolbar" role="toolbar" aria-label="Ferramentas da imagem">
-          <button class="edit-tool active" data-edit-mode="draw" type="button">✎ Desenhar</button>
-          <button class="edit-tool" data-edit-mode="crop" type="button">▣ Recortar</button>
-          <button class="edit-tool" data-edit-mode="text" type="button">T Texto</button>
+          <button class="edit-tool active" data-edit-mode="draw" type="button"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-draw"/></svg><span>Desenhar</span></button>
+          <button class="edit-tool" data-edit-mode="crop" type="button"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-crop"/></svg><span>Recortar</span></button>
+          <button class="edit-tool" data-edit-mode="text" type="button"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-text"/></svg><span>Texto</span></button>
         </div>
         <div class="editor-detail">
           <label class="editor-field" id="editColorGroup">Cor <input id="editColor" type="color" value="#ffffff" /></label>
@@ -201,16 +202,16 @@
           <button data-image-filter="frio" type="button">Frio</button>
           <button data-image-filter="vivo" type="button">Vivo</button>
         </div>
-        <div class="editor-history"><button id="editUndoButton" type="button" class="soft-button">↶ Desfazer</button><button id="editResetButton" type="button" class="soft-button">Limpar</button></div>
+        <div class="editor-history"><button id="editUndoButton" type="button" class="soft-button"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-undo"/></svg><span>Desfazer</span></button><button id="editResetButton" type="button" class="soft-button">Limpar</button></div>
       </div>
       <div class="editor-stage-col"><div class="editor-stage"><div class="canvas-wrap"><canvas id="editCanvas" aria-label="Área para desenhar, recortar e escrever na imagem"></canvas><img id="editGifPreview" alt="Prévia do GIF animado" hidden /><div id="editCropBox" hidden></div></div></div><p id="editGifNotice" class="editor-notice" hidden></p><p class="editor-tip">Desenhe ou recorte arrastando; no modo Texto, escreva e toque na imagem. GIF sem edição mantém o movimento.</p></div>
     </div>
-    <div class="editor-footer"><button id="editCancelButton" class="soft-button" type="button">Cancelar</button><button id="editApplyButton" class="primary-button" type="button">Adicionar ao chat <span aria-hidden="true">↗</span></button></div>
+    <div class="editor-footer"><button id="editCancelButton" class="soft-button" type="button">Cancelar</button><button id="editApplyButton" class="primary-button" type="button">Adicionar ao chat <svg class="icon arrow" aria-hidden="true" focusable="false"><use href="/icons.svg#i-arrow-up-right"/></svg></button></div>
   </dialog>
 
   <dialog id="profileDialog" class="mini-modal glass profile-dialog" aria-label="Meu perfil e privacidade">
     <form id="profileForm" class="mini-modal-content">
-      <header class="profile-heading"><div><span class="eyebrow">MINHA CONTA</span><h2>Meu perfil</h2></div><button id="closeProfile" type="button" class="dialog-close-inline" aria-label="Fechar">×</button></header>
+      <header class="profile-heading"><div><span class="eyebrow">MINHA CONTA</span><h2>Meu perfil</h2></div><button id="closeProfile" type="button" class="dialog-close-inline" aria-label="Fechar"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-close"/></svg></button></header>
       <div class="profile-photo-row"><div id="profilePreview" class="account-avatar profile-photo">P</div><div><label for="profileAvatarInput" class="soft-button profile-photo-label">Alterar foto</label><input id="profileAvatarInput" type="file" accept="image/png,image/jpeg,image/webp" hidden /><button id="removeProfileAvatar" type="button" class="text-button">Remover foto</button></div></div>
       <div class="profile-identity"><strong id="profileName">Conta</strong><span id="profileEmail">email</span><span>Código Pegasus: <b id="profileCode"></b></span></div>
       <label class="field-group">Sua bio <textarea id="profileBio" rows="3" maxlength="240" placeholder="Conte um pouco sobre você..."></textarea><small>Até 240 caracteres</small></label>
@@ -219,11 +220,11 @@
         <label><input type="radio" name="privacyMode" value="approval" /><span><strong>Apenas com minha aprovação</strong><small>Novos contatos precisam enviar uma solicitação.</small></span></label>
       </fieldset>
       <p class="profile-help">As conversas já aceitas continuam disponíveis ao mudar esta opção.</p>
-      <button id="saveProfileButton" type="submit" class="primary-button">Salvar perfil <span>✓</span></button>
+      <button id="saveProfileButton" type="submit" class="primary-button">Salvar perfil <svg class="icon arrow" aria-hidden="true" focusable="false"><use href="/icons.svg#i-check"/></svg></button>
     </form>
   </dialog>
   <dialog id="requestsDialog" class="mini-modal glass requests-dialog" aria-label="Solicitações de conversa">
-    <div class="mini-modal-content"><header class="profile-heading"><div><span class="eyebrow">CONTATOS</span><h2>Solicitações</h2></div><button id="closeRequests" type="button" class="dialog-close-inline" aria-label="Fechar">×</button></header><p>Pessoas que querem iniciar uma conversa com você.</p><div id="requestsList" class="requests-list"></div><p id="requestsOutgoing" class="request-outgoing"></p></div>
+    <div class="mini-modal-content"><header class="profile-heading"><div><span class="eyebrow">CONTATOS</span><h2>Solicitações</h2></div><button id="closeRequests" type="button" class="dialog-close-inline" aria-label="Fechar"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-close"/></svg></button></header><p>Pessoas que querem iniciar uma conversa com você.</p><div id="requestsList" class="requests-list"></div><p id="requestsOutgoing" class="request-outgoing"></p></div>
   </dialog>
   
   <!-- Confirmação e reações em popover compacto (sem cobrir a tela) -->
@@ -239,14 +240,14 @@
 
   <div id="reactionPopover" class="floating-popover reaction-popover" popover="manual" role="menu" aria-label="Reagir à mensagem" hidden>
     <div id="reactionGrid" class="reaction-grid">
-      <button type="button" data-emoji="👍" aria-label="Curtir">👍</button>
-      <button type="button" data-emoji="❤️" aria-label="Amei">❤️</button>
-      <button type="button" data-emoji="😂" aria-label="Haha">😂</button>
-      <button type="button" data-emoji="😮" aria-label="Uau">😮</button>
-      <button type="button" data-emoji="😢" aria-label="Triste">😢</button>
-      <button type="button" data-emoji="🔥" aria-label="Fogo">🔥</button>
-      <button type="button" data-emoji="👏" aria-label="Palmas">👏</button>
-      <button type="button" data-emoji="🙏" aria-label="Obrigado">🙏</button>
+      <button type="button" class="reaction-option reaction-like" data-emoji="&#x1F44D;" aria-label="Curtir" title="Curtir"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-like"/></svg></button>
+      <button type="button" class="reaction-option reaction-love" data-emoji="&#x2764;&#xFE0F;" aria-label="Amei" title="Amei"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-love"/></svg></button>
+      <button type="button" class="reaction-option reaction-laugh" data-emoji="&#x1F602;" aria-label="Haha" title="Haha"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-laugh"/></svg></button>
+      <button type="button" class="reaction-option reaction-surprised" data-emoji="&#x1F62E;" aria-label="Uau" title="Uau"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-surprised"/></svg></button>
+      <button type="button" class="reaction-option reaction-sad" data-emoji="&#x1F622;" aria-label="Triste" title="Triste"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-sad"/></svg></button>
+      <button type="button" class="reaction-option reaction-fire" data-emoji="&#x1F525;" aria-label="Fogo" title="Fogo"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-fire"/></svg></button>
+      <button type="button" class="reaction-option reaction-celebrate" data-emoji="&#x1F44F;" aria-label="Palmas" title="Palmas"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-celebrate"/></svg></button>
+      <button type="button" class="reaction-option reaction-thanks" data-emoji="&#x1F64F;" aria-label="Obrigado" title="Obrigado"><svg class="icon" aria-hidden="true" focusable="false"><use href="/icons.svg#i-thanks"/></svg></button>
     </div>
     <button id="removeReactionButton" type="button" class="popover-btn reaction-remove">Remover reação</button>
   </div>
